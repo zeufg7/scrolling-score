@@ -61,7 +61,7 @@ button,select,input{font:inherit;color:inherit}
 :is(#osmd,#sticky) svg path[stroke]:not([stroke="none"]),:is(#osmd,#sticky) svg line,:is(#osmd,#sticky) svg rect[stroke]:not([stroke="none"]){stroke:var(--ink)}
 :is(#osmd,#sticky) svg text{fill:var(--ink2)}
 #sticky svg .hl path,#sticky svg .hl ellipse{fill:var(--ink)!important;stroke:var(--ink)!important}
-.sticky{position:absolute;left:0;z-index:5;pointer-events:none;display:flex;background:linear-gradient(to right,var(--stage) 0,var(--stage) calc(100% - 28px),transparent 100%);padding-left:max(10px,env(safe-area-inset-left,0px));padding-right:28px}
+.sticky{position:absolute;left:0;z-index:5;pointer-events:none;display:flex;background:linear-gradient(to right,var(--stage) 0,var(--stage) calc(100% - 36px),transparent 100%);padding-left:max(10px,env(safe-area-inset-left,0px));padding-right:36px}
 .sticky-in{position:relative;overflow:hidden}
 .restbadge{position:absolute;left:0;top:0;z-index:4;pointer-events:none;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--amber-ink);background:var(--amber);border-radius:3px;padding:2px 6px;white-space:nowrap;transform-origin:left top;margin-left:-4px}
 .stage.vertical .sticky{display:none}
@@ -718,12 +718,20 @@ function drawTicks(){
 /* ---------- engraved bar boxes and the sticky clef/key/time header ---------- */
 let stickyX=null;
 function svgOffset(){ const svg=host.querySelector("svg"); if(!svg) return {x:0,y:0}; const hr=host.getBoundingClientRect(), sr=svg.getBoundingClientRect(); return {x:sr.left-hr.left, y:sr.top-hr.top}; }
+function unitPx(){ // pixels per engraving unit, read from the rendered SVG
+  const svg=host.querySelector("svg"); if(!svg) return 10*(osmd.zoom||1);
+  const vb=svg.viewBox&&svg.viewBox.baseVal; const w=svg.getBoundingClientRect().width;
+  return (vb&&vb.width&&w) ? 10*w/vb.width : 10*(osmd.zoom||1);
+}
 function measureBoxes(){
   const gs=osmd.GraphicSheet; if(!gs) return;
-  const u=10*osmd.zoom, so=svgOffset(); let owner=-1;
+  const u=unitPx(), so=svgOffset(); let owner=-1;
+  const svgEl=host.querySelector("svg"), vb=svgEl&&svgEl.viewBox&&svgEl.viewBox.baseVal, sc=(vb&&vb.width)?svgEl.getBoundingClientRect().width/vb.width:u/10;
   measures.forEach((m,i)=>{
     const row=gs.MeasureList[i]; const g=row&&row.find(z=>z);
-    if(g&&g.PositionAndShape){ const ps=g.PositionAndShape, ax=ps.AbsolutePosition.x;
+    const st=g&&g.getVFStave?(()=>{ try{ return g.getVFStave(); }catch(e){ return null; } })():null;
+    if(st&&st.getNoteStartX){ m.gx0=so.x+st.getNoteStartX()*sc; m.gx1=so.x+st.getNoteEndX()*sc; m.sx=so.x+st.getX()*sc; owner=i; m.owner=i; }
+    else if(g&&g.PositionAndShape){ const ps=g.PositionAndShape, ax=ps.AbsolutePosition.x;
       m.gx0=so.x+(ax+(g.beginInstructionsWidth||0))*u; m.gx1=so.x+(ax+ps.BorderRight-(g.endInstructionsWidth||0))*u; owner=i; m.owner=i; }
     else m.owner=owner;
   });
@@ -731,28 +739,30 @@ function measureBoxes(){
   // sticky header: clef, key and time signature of the first bar
   stickyX=null; const box=$("sticky"); box.textContent=""; box.hidden=true;
   const svg=host.querySelector("svg"), row=gs.MeasureList[0], g=row&&row.find(z=>z);
-  if(S.mode!=="horizontal"||!svg||!g||!g.beginInstructionsWidth) return;
-  const ax=g.PositionAndShape.AbsolutePosition.x, x0=(ax-0.2)*u, x1=(ax+g.beginInstructionsWidth-1.1)*u;
+  if(S.mode!=="horizontal"||!svg||!g) return;
+  const ax=g.PositionAndShape.AbsolutePosition.x;
+  const m0=measures[0]; const x0=(m0.sx!==undefined?m0.sx-so.x:ax*u)-2, x1=(m0.gx0!==undefined?m0.gx0-so.x:(ax+g.beginInstructionsWidth)*u)+2;
   // keep only the staff band: no tempo marks or texts from the first bar
   const ys=tl.filter(e=>!e.end), y0=Math.max(0,Math.min(...ys.map(e=>e.y))-so.y-1.2*u), y1=Math.max(...ys.map(e=>e.y+e.h))-so.y+1.2*u;
   stickyX={x0,x1,y0,y1};
   const cl=svg.cloneNode(true); cl.removeAttribute("id"); cl.querySelectorAll("[id]").forEach(n=>n.removeAttribute("id"));
   cl.style.position="absolute"; cl.style.left=(-x0)+"px"; cl.style.top=(-y0)+"px";
   const inner=document.createElement("div"); inner.className="sticky-in"; inner.style.width=(x1-x0)+"px"; inner.style.height=(y1-y0)+"px"; inner.append(cl);
-  box.append(inner); box.style.top=(host.offsetTop+so.y+y0)+"px";
+  const pad=Math.round(2.5*u); box.style.paddingTop=box.style.paddingBottom=pad+"px"; stickyX.pad=pad;
+  box.append(inner); box.style.top=(host.offsetTop+so.y+y0-pad)+"px";
 }
 function placeSticky(tx){
   const box=$("sticky"); if(!stickyX||S.mode!=="horizontal"){ box.hidden=true; return; }
   const so=svgOffset(); const onScreen=tx+host.offsetLeft+so.x+stickyX.x0;
   box.hidden = onScreen>0;
-  box.style.top=(host.offsetTop+so.y+stickyX.y0)+"px";
+  box.style.top=(host.offsetTop+so.y+stickyX.y0-(stickyX.pad||0))+"px";
 }
 
 /* ---------- time helpers ---------- */
 function idxAt(t){ let lo=0, hi=tl.length-1; if(hi<0) return -1; if(t<tl[0].t) return 0; while(lo<hi){ const mid=(lo+hi+1)>>1; if(tl[mid].t<=t) lo=mid; else hi=mid-1; } return lo; }
 function measureAt(t){ let lo=0, hi=measures.length-1; while(lo<hi){ const mid=(lo+hi+1)>>1; if(measures[mid].t0<=t+1e-6) lo=mid; else hi=mid-1; } return lo; }
 const REST_EASE=0.18;
-function restX(mi){ const m=measures[mi]; if(!m||m.hasNotes) return null; const ow=measures[m.owner]; if(!ow||ow.gx0===undefined) return null; const N=ow.span||1, k=mi-m.owner; return { x: ow.gx0+(ow.gx1-ow.gx0)*(k+0.5)/N, k:k+1, N }; }
+function restX(mi){ const m=measures[mi]; if(!m||m.hasNotes) return null; const ow=measures[m.owner]; if(!ow||ow.gx0===undefined) return null; const N=ow.span||1, k=mi-m.owner; return { x: ow.gx0+(ow.gx1-ow.gx0)*k/N+5, k:k+1, N }; }
 function posAt(t){
   const i=idxAt(t); if(i<0) return {x:0,y:0,h:0,i:-1};
   const a=tl[i], b=tl[i+1];
@@ -1067,7 +1077,7 @@ stage.addEventListener("pointerdown",e=>{
 });
 window.addEventListener("pointermove",e=>{
   if(itemDrag){ const dx=e.clientX-itemDrag.x, dy=e.clientY-itemDrag.y; if(!itemDrag.moved&&Math.hypot(dx,dy)<3) return; itemDrag.moved=true; stage.classList.add("dragging-item");
-    const z=osmd.zoom||1, it=itemDrag.it; it.pel.setAttribute("relative-x",String(Math.round((itemDrag.rx+dx/z)*10)/10)); it.pel.setAttribute("relative-y",String(Math.round((itemDrag.ry-dy/z)*10)/10)); refreshSelBox(); return; }
+    const z=unitPx()/10, it=itemDrag.it; it.pel.setAttribute("relative-x",String(Math.round((itemDrag.rx+dx/z)*10)/10)); it.pel.setAttribute("relative-y",String(Math.round((itemDrag.ry-dy/z)*10)/10)); refreshSelBox(); return; }
   if(!down||S.mode!=="horizontal") return;
   const dx=e.clientX-down.x;
   if(!down.moved && Math.abs(dx)<5) return;
@@ -1795,7 +1805,7 @@ function buildItems(){
           const nodes=ex.label&&ex.label.SVGNode?[ex.label.SVGNode]:null;
           if(d&&nodes){ items.push({kind:"dyn", nodes, pel:d.k, xd:d, key:d.dt}); continue; }
           let bb=null;
-          if(!bb){ const b=ex.PositionAndShape, u=10*osmd.zoom, svg=host.querySelector("svg"), so=relBox([svg.getBoundingClientRect()]); bb={x:so.x+(b.AbsolutePosition.x+b.BorderLeft)*u, y:so.y+(b.AbsolutePosition.y+b.BorderTop)*u, w:(b.BorderRight-b.BorderLeft)*u, h:(b.BorderBottom-b.BorderTop)*u}; }
+          if(!bb){ const b=ex.PositionAndShape, u=unitPx(), svg=host.querySelector("svg"), so=relBox([svg.getBoundingClientRect()]); bb={x:so.x+(b.AbsolutePosition.x+b.BorderLeft)*u, y:so.y+(b.AbsolutePosition.y+b.BorderTop)*u, w:(b.BorderRight-b.BorderLeft)*u, h:(b.BorderBottom-b.BorderTop)*u}; }
           if(d&&bb) items.push({kind:"dyn", bb, xd:d, key:d.dt});
         } else if(ex.label && ex.label.SVGNode && ex.sourceMultiExpression){
           const me=ex.sourceMultiExpression, text=(ex.label.label&&ex.label.label.text||"").trim();
@@ -1821,7 +1831,7 @@ function buildItems(){
   items=items.filter(it=>it.bb);
 }
 function applyOffsets(list){
-  const z=osmd.zoom||1;
+  const z=unitPx()/10;
   for(const it of list){
     if(!it.nodes||!it.pel) continue;
     const rx=+(it.pel.getAttribute("relative-x")||0), ry=+(it.pel.getAttribute("relative-y")||0);
@@ -1842,7 +1852,7 @@ function lightEdit(fn){
   try{ localStorage.setItem("pr.score", new XMLSerializer().serializeToString(xmlDoc)); }catch(e){}
   $("eUndo").disabled=false; $("eRedo").disabled=true;
 }
-function nudge(it,dxPx,dyPx){ const z=osmd.zoom||1; const rx=+(it.pel.getAttribute("relative-x")||0)+dxPx/z, ry=+(it.pel.getAttribute("relative-y")||0)-dyPx/z; it.pel.setAttribute("relative-x",String(Math.round(rx*10)/10)); it.pel.setAttribute("relative-y",String(Math.round(ry*10)/10)); }
+function nudge(it,dxPx,dyPx){ const z=unitPx()/10; const rx=+(it.pel.getAttribute("relative-x")||0)+dxPx/z, ry=+(it.pel.getAttribute("relative-y")||0)-dyPx/z; it.pel.setAttribute("relative-x",String(Math.round(rx*10)/10)); it.pel.setAttribute("relative-y",String(Math.round(ry*10)/10)); }
 function resetPos(it){ it.pel.removeAttribute("relative-x"); it.pel.removeAttribute("relative-y"); }
 function placementOf(it){ return it.kind==="slur" ? (it.pel.getAttribute("placement")||"") : (it.xd.el.getAttribute("placement")||""); }
 function setPlacement(it,v){ if(it.kind==="slur") it.pel.setAttribute("placement",v); else it.xd.el.setAttribute("placement",v); }
