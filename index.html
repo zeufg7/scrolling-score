@@ -57,9 +57,14 @@ button,select,input{font:inherit;color:inherit}
 #osmd{position:relative}
 #osmd img[id^="cursorImg"]{opacity:0!important}
 /* recolor the engraving through CSS so the background can change without re-rendering */
-#osmd svg path[fill]:not([fill="none"]),#osmd svg rect[fill]:not([fill="none"]),#osmd svg ellipse,#osmd svg polygon{fill:var(--ink)}
-#osmd svg path[stroke]:not([stroke="none"]),#osmd svg line,#osmd svg rect[stroke]:not([stroke="none"]){stroke:var(--ink)}
-#osmd svg text{fill:var(--ink2)}
+:is(#osmd,#sticky) svg path[fill]:not([fill="none"]),:is(#osmd,#sticky) svg rect[fill]:not([fill="none"]),:is(#osmd,#sticky) svg ellipse,:is(#osmd,#sticky) svg polygon{fill:var(--ink)}
+:is(#osmd,#sticky) svg path[stroke]:not([stroke="none"]),:is(#osmd,#sticky) svg line,:is(#osmd,#sticky) svg rect[stroke]:not([stroke="none"]){stroke:var(--ink)}
+:is(#osmd,#sticky) svg text{fill:var(--ink2)}
+#sticky svg .hl path,#sticky svg .hl ellipse{fill:var(--ink)!important;stroke:var(--ink)!important}
+.sticky{position:absolute;left:0;z-index:5;pointer-events:none;display:flex;background:linear-gradient(to right,var(--stage) 0,var(--stage) calc(100% - 28px),transparent 100%);padding-left:max(10px,env(safe-area-inset-left,0px));padding-right:28px}
+.sticky-in{position:relative;overflow:hidden}
+.restbadge{position:absolute;left:0;top:0;z-index:4;pointer-events:none;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--amber-ink);background:var(--amber);border-radius:3px;padding:2px 6px;white-space:nowrap;transform-origin:left top;margin-left:-4px}
+.stage.vertical .sticky{display:none}
 #osmd svg .hl path[fill]:not([fill="none"]),#osmd svg .hl ellipse,#osmd svg .hl polygon,#osmd svg .hl rect[fill]:not([fill="none"]){fill:var(--amber)}
 #osmd svg .hl path[stroke]:not([stroke="none"]),#osmd svg .hl line{stroke:var(--amber)}
 .bar{position:absolute;left:0;top:0;width:3px;border-radius:2px;min-width:1px;background:var(--amber);box-shadow:0 0 18px 2px rgba(224,164,88,.45);pointer-events:none;z-index:3}
@@ -180,7 +185,7 @@ body.rec .tline{display:none}
 .xp-prev{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#000;border-radius:6px;overflow:hidden;padding:8px}
 .xp-prev canvas{display:block;max-width:100%;max-height:min(62vh,100%);width:auto;height:auto;box-shadow:0 0 0 1px var(--line)}
 .xp-trans{display:flex;align-items:center;gap:10px}
-.xp-side{width:300px;flex:none;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding-right:4px;max-height:72vh}
+.xp-side{width:320px;flex:none;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding-right:4px;max-height:72vh}
 .xp-side.locked{opacity:.45;pointer-events:none}
 .xh{margin:6px 0 0;font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.2em;color:var(--amber);text-transform:uppercase}
 .xp-prog{height:6px;background:var(--line2);border-radius:3px;overflow:hidden}
@@ -188,7 +193,7 @@ body.rec .tline{display:none}
 #xVideoBox{display:flex;flex-direction:column;gap:12px}
 .fmts{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .fmt{padding:10px 8px}
-.fmt b{font-size:14px;letter-spacing:0;overflow-wrap:anywhere}
+.fmt b{font-size:13px;letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 @media (max-width:860px){ .xp-main{flex-direction:column} .xp-side{width:auto;max-height:none} .xp-card{overflow-y:auto} }
 /* edit mode */
 .ebar{position:absolute;top:0;left:0;right:0;z-index:9;background:var(--card);border-bottom:1px solid var(--line);padding:8px max(16px,env(safe-area-inset-right,0px)) 8px max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);cursor:default}
@@ -214,6 +219,7 @@ body.rec .tline{display:none}
 .chipm .eb{height:24px;min-width:24px;padding:0 6px;border:0;background:transparent}
 .selbox{position:absolute;border:2px solid var(--amber);border-radius:4px;background:rgba(224,164,88,.12);box-shadow:0 0 0 3px rgba(224,164,88,.25);pointer-events:none;z-index:4}
 .stage.editing{cursor:default}
+.stage.dragging-item{cursor:move}
 .stage.editing.horizontal .track{padding-top:150px}
 .stage.editing.vertical .track{padding-top:130px}
 .stage.editing .ov{display:none}
@@ -271,6 +277,7 @@ body.rec .stage{cursor:none}
       <div class="loopzone" id="loopzone" hidden></div>
       <div class="bar" id="bar"></div>
       <div class="selbox" id="selBox" hidden></div>
+      <div class="restbadge" id="restBadge" hidden></div>
     </div>
     <div class="ebar" id="ebar" hidden>
       <div class="ebar-top">
@@ -284,6 +291,7 @@ body.rec .stage{cursor:none}
       </div>
       <div class="ectx" id="eCtx"></div>
     </div>
+    <div class="sticky" id="sticky" hidden></div>
     <div class="playline" id="playline"></div>
     <div class="fade l"></div><div class="fade r"></div>
     <div class="ov ov-handle" id="ovHandle">@O_ZEUFG</div>
@@ -690,6 +698,7 @@ function buildTimeline(){
   }
   notes.sort((a,b)=>a.t0-b.t0);
   for(const e of tl){ if(e.notes.some(n=>n.midi!==null) && measures[e.mi]) measures[e.mi].hasNotes=true; }
+  measureBoxes();
   loadSync(); updateSeekRange(); tlFit();
   drawTicks();
   S.loopA=Math.min(Math.max(1,S.loopA),measures.length); S.loopB=Math.min(Math.max(S.loopA,S.loopB),measures.length);
@@ -707,12 +716,60 @@ function drawTicks(){
   if(S.loop){ const a=measures[S.loopA-1], b=measures[S.loopB-1]; if(a&&b){ const lp=document.createElement("span"); lp.className="lp"; lp.style.left=P(a.t0); lp.style.width=((b.t1-a.t0)/span*100)+"%"; box.append(lp);} }
 }
 
+/* ---------- engraved bar boxes and the sticky clef/key/time header ---------- */
+let stickyX=null;
+function svgOffset(){ const svg=host.querySelector("svg"); if(!svg) return {x:0,y:0}; const hr=host.getBoundingClientRect(), sr=svg.getBoundingClientRect(); return {x:sr.left-hr.left, y:sr.top-hr.top}; }
+function measureBoxes(){
+  const gs=osmd.GraphicSheet; if(!gs) return;
+  const u=10*osmd.zoom, so=svgOffset(); let owner=-1;
+  measures.forEach((m,i)=>{
+    const row=gs.MeasureList[i]; const g=row&&row.find(z=>z);
+    if(g&&g.PositionAndShape){ const ps=g.PositionAndShape, ax=ps.AbsolutePosition.x;
+      m.gx0=so.x+(ax+(g.beginInstructionsWidth||0))*u; m.gx1=so.x+(ax+ps.BorderRight-(g.endInstructionsWidth||0))*u; owner=i; m.owner=i; }
+    else m.owner=owner;
+  });
+  measures.forEach((m,i)=>{ if(m.owner===i){ let n=1; while(measures[i+n]&&measures[i+n].owner===i) n++; m.span=n; } });
+  // sticky header: clef, key and time signature of the first bar
+  stickyX=null; const box=$("sticky"); box.textContent=""; box.hidden=true;
+  const svg=host.querySelector("svg"), row=gs.MeasureList[0], g=row&&row.find(z=>z);
+  if(S.mode!=="horizontal"||!svg||!g||!g.beginInstructionsWidth) return;
+  const ax=g.PositionAndShape.AbsolutePosition.x, x0=(ax-0.2)*u, x1=(ax+g.beginInstructionsWidth-1.1)*u;
+  // keep only the staff band: no tempo marks or texts from the first bar
+  const ys=tl.filter(e=>!e.end), y0=Math.max(0,Math.min(...ys.map(e=>e.y))-so.y-1.2*u), y1=Math.max(...ys.map(e=>e.y+e.h))-so.y+1.2*u;
+  stickyX={x0,x1,y0,y1};
+  const cl=svg.cloneNode(true); cl.removeAttribute("id"); cl.querySelectorAll("[id]").forEach(n=>n.removeAttribute("id"));
+  cl.style.position="absolute"; cl.style.left=(-x0)+"px"; cl.style.top=(-y0)+"px";
+  const inner=document.createElement("div"); inner.className="sticky-in"; inner.style.width=(x1-x0)+"px"; inner.style.height=(y1-y0)+"px"; inner.append(cl);
+  box.append(inner); box.style.top=(host.offsetTop+so.y+y0)+"px";
+}
+function placeSticky(tx){
+  const box=$("sticky"); if(!stickyX||S.mode!=="horizontal"){ box.hidden=true; return; }
+  const so=svgOffset(); const onScreen=tx+host.offsetLeft+so.x+stickyX.x0;
+  box.hidden = onScreen>0;
+  box.style.top=(host.offsetTop+so.y+stickyX.y0)+"px";
+}
+
 /* ---------- time helpers ---------- */
 function idxAt(t){ let lo=0, hi=tl.length-1; if(hi<0) return -1; if(t<tl[0].t) return 0; while(lo<hi){ const mid=(lo+hi+1)>>1; if(tl[mid].t<=t) lo=mid; else hi=mid-1; } return lo; }
 function measureAt(t){ let lo=0, hi=measures.length-1; while(lo<hi){ const mid=(lo+hi+1)>>1; if(measures[mid].t0<=t+1e-6) lo=mid; else hi=mid-1; } return lo; }
+const REST_EASE=0.18;
+function restX(mi){ const m=measures[mi]; if(!m||m.hasNotes) return null; const ow=measures[m.owner]; if(!ow||ow.gx0===undefined) return null; const N=ow.span||1, k=mi-m.owner; return { x: ow.gx0+(ow.gx1-ow.gx0)*(k+0.5)/N, k:k+1, N }; }
 function posAt(t){
   const i=idxAt(t); if(i<0) return {x:0,y:0,h:0,i:-1};
   const a=tl[i], b=tl[i+1];
+  // whole bars of rest: hold on the rest, counting bar by bar, and move on only when the music comes back
+  if(t>=0 && measures.length){
+    const mi=measureAt(t), m=measures[mi], r=restX(mi);
+    if(r){
+      let x=r.x;
+      if(t>m.t1-REST_EASE){
+        const nr=restX(mi+1); let x2=null;
+        if(nr) x2=nr.x; else { const j=idxAt(m.t1+1e-4); if(tl[j] && tl[j].y===a.y) x2=tl[j].x; }
+        if(x2!==null){ let f=(t-(m.t1-REST_EASE))/REST_EASE; f=f*f*(3-2*f); x=x+(x2-x)*f; }
+      }
+      return {x, y:a.y, h:a.h, i, rest:{k:r.k, N:r.N}};
+    }
+  }
   if(!b || b.y!==a.y || b.t<=a.t) return {x:a.x,y:a.y,h:a.h,i};
   const f=Math.min(1,Math.max(0,(t-a.t)/(b.t-a.t)));
   return {x:a.x+(b.x-a.x)*f, y:a.y, h:a.h, i};
@@ -898,7 +955,7 @@ function frame(force){
   if(S.mode==="horizontal"){
     const ph=W*S.playhead/100;
     const tx = (dragX!==null ? dragX : ph - p.x);
-    track.style.transform=`translate3d(${tx}px,0,0)`;
+    track.style.transform=`translate3d(${tx}px,0,0)`; placeSticky(tx);
     playline.style.left=ph+"px";
     placeBar(p);
   } else {
@@ -925,7 +982,13 @@ function frame(force){
   $("tNow").textContent=fmt(t);
   if(!seeking) $("seek").value=Math.round(t*100);
 }
+function placeBadge(p){
+  const b=$("restBadge"); if(!p.rest||p.rest.N<2){ b.hidden=true; return; }
+  b.hidden=false; b.textContent=`PAUSA ${p.rest.k}/${p.rest.N}`;
+  b.style.transform=`translate3d(${host.offsetLeft+p.x}px,${host.offsetTop+p.y-24}px,0)`;
+}
 function placeBar(p){
+  placeBadge(p);
   const h=p.h*S.lineH/100, y=host.offsetTop+p.y+(p.h-h)/2+S.lineY, x=host.offsetLeft+p.x+S.lineX-S.lineW/2;
   bar.style.width=S.lineW+"px"; bar.style.height=h+"px";
   bar.style.transform=`translate3d(${x}px,${y}px,0)`;
@@ -996,12 +1059,22 @@ document.addEventListener("drop",e=>{ e.preventDefault(); dragDepth=0; $("drop")
 
 /* ---------- stage interaction: drag to scrub, click to jump ---------- */
 let down=null, seeking=false;
+let itemDrag=null;
 stage.addEventListener("pointerdown",e=>{
   if(e.button!==0||!loaded) return;
+  if(editMode && sel && sel.pel && !e.target.closest(".ebar")){
+    const hr=host.getBoundingClientRect(), cx=e.clientX-hr.left, cy=e.clientY-hr.top, P=6;
+    if(cx>=sel.bb.x-P&&cx<=sel.bb.x+sel.bb.w+P&&cy>=sel.bb.y-P&&cy<=sel.bb.y+sel.bb.h+P){
+      itemDrag={x:e.clientX,y:e.clientY,rx:+(sel.pel.getAttribute("relative-x")||0),ry:+(sel.pel.getAttribute("relative-y")||0),before:new XMLSerializer().serializeToString(xmlDoc),moved:false,it:sel};
+      e.preventDefault(); return;
+    }
+  }
   down={x:e.clientX,y:e.clientY,moved:false,start:null};
   if(S.mode==="horizontal"){ const m=/translate3d\(([-\d.]+)px/.exec(track.style.transform); down.start=m?parseFloat(m[1]):0; }
 });
 window.addEventListener("pointermove",e=>{
+  if(itemDrag){ const dx=e.clientX-itemDrag.x, dy=e.clientY-itemDrag.y; if(!itemDrag.moved&&Math.hypot(dx,dy)<3) return; itemDrag.moved=true; stage.classList.add("dragging-item");
+    const z=osmd.zoom||1, it=itemDrag.it; it.pel.setAttribute("relative-x",String(Math.round((itemDrag.rx+dx/z)*10)/10)); it.pel.setAttribute("relative-y",String(Math.round((itemDrag.ry-dy/z)*10)/10)); refreshSelBox(); return; }
   if(!down||S.mode!=="horizontal") return;
   const dx=e.clientX-down.x;
   if(!down.moved && Math.abs(dx)<5) return;
@@ -1011,6 +1084,9 @@ window.addEventListener("pointermove",e=>{
   pos=timeAtX(ph-dragX); clearHl(); frame(true);
 });
 window.addEventListener("pointerup",e=>{
+  if(itemDrag){ const d=itemDrag; itemDrag=null; stage.classList.remove("dragging-item");
+    if(d.moved){ undoStack.push(d.before); if(undoStack.length>80) undoStack.shift(); redoStack=[]; edited=true; $("eSave").classList.add("dirty"); try{ localStorage.setItem("pr.score", new XMLSerializer().serializeToString(xmlDoc)); }catch(err){} renderEbar(); return; }
+    const hr=host.getBoundingClientRect(); selectAt(e.clientX-hr.left, e.clientY-hr.top); return; }
   if(!down) return;
   const d=down; down=null; stage.classList.remove("dragging");
   if(d.moved){ dragX=null; seekTo(pos); if(d.wasPlaying) play(); return; }
@@ -1477,9 +1553,16 @@ function drawExportFrame(g, L, R, t, opts){
         drawTiles(g,R,"amber",Math.max(0,x-R.ox),Math.max(0,y-R.oy),w,h, offX+x, offY+y);
       }
     }
+    { const fl=g.createLinearGradient(bx,0,bx+90,0); fl.addColorStop(0,stageC); fl.addColorStop(1,hexA(stageC,0)); g.fillStyle=fl; g.fillRect(bx,by,90,bh); }
+    // sticky clef / key / time at the left edge once the opening bar has scrolled away
+    if(stickyX){ const sx0=stickyX.x0*s, sx1=stickyX.x1*s, orig=offX+R.ox+sx0; if(orig<bx+24){ const pad=24, w=sx1-sx0;
+      const sy0=stickyX.y0*s, sh=(stickyX.y1-stickyX.y0)*s;
+      g.fillStyle=stageC; g.fillRect(bx,by,pad+w+10,bh);
+      drawTiles(g,R,"ink",sx0,sy0,w,sh,bx+pad,offY+R.oy+sy0);
+      const fs=g.createLinearGradient(bx+pad+w+10,0,bx+pad+w+46,0); fs.addColorStop(0,stageC); fs.addColorStop(1,hexA(stageC,0)); g.fillStyle=fs; g.fillRect(bx+pad+w+10,by,36,bh); } }
+    if(p.rest&&p.rest.N>1){ const lbl=`PAUSA ${p.rest.k}/${p.rest.N}`; g.font="500 "+Math.round(14*Math.max(1,s*0.8))+"px 'IBM Plex Mono', monospace"; const tw=g.measureText(lbl).width+16, th=Math.round(22*Math.max(1,s*0.8)); const lx=offX+p.x*s-6, ly=offY+sysTop-th-10; g.fillStyle="#E0A458"; g.fillRect(lx,ly,tw,th); g.fillStyle="#1A1206"; g.textBaseline="middle"; g.fillText(lbl,lx+8,ly+th/2+1); g.textBaseline="alphabetic"; }
     const bxp=offX+p.x*s, lh=sysH*S.lineH/100, lw=Math.max(2,S.lineW*s*0.8);
     g.shadowColor="rgba(224,164,88,.6)"; g.shadowBlur=18; g.fillStyle="#E0A458"; g.fillRect(bxp+S.lineX*s-lw/2, offY+sysTop+(sysH-lh)/2+S.lineY*s, lw, lh); g.shadowBlur=0;
-    const fl=g.createLinearGradient(bx,0,bx+90,0); fl.addColorStop(0,stageC); fl.addColorStop(1,hexA(stageC,0)); g.fillStyle=fl; g.fillRect(bx,by,90,bh);
     const fr=g.createLinearGradient(bx+bw-90,0,bx+bw,0); fr.addColorStop(0,hexA(stageC,0)); fr.addColorStop(1,stageC); g.fillStyle=fr; g.fillRect(bx+bw-90,by,90,bh);
     g.restore();
   }
@@ -1692,13 +1775,13 @@ function buildItems(){
   items=[]; XS=scanXml(); if(!xmlDoc||!loaded) return;
   const used=new Set(), byKey=new Map();
   for(const n of XS.notes){ if(n.grace) continue; const k=n.pi+"|"+n.mi+"|"+Math.round(n.t*3840)+"|"+n.voice; if(!byKey.has(k)) byKey.set(k,[]); byKey.get(k).push(n); }
-  const seen=new Set();
+  const seen=new Set(), srcMap=new Map();
   for(const rec of notes){
     if(!rec.src||seen.has(rec.src)) continue; seen.add(rec.src);
     const k=rec.pi+"|"+rec.mi+"|"+Math.round(rec.tsIn*3840)+"|"+rec.voice, list=byKey.get(k)||[];
     let c=list.find(x=>!used.has(x)&&x.midi===rec.midi)||list.find(x=>!used.has(x));
     if(!c) c=XS.notes.find(x=>!used.has(x)&&!x.grace&&x.pi===rec.pi&&x.mi===rec.mi&&Math.abs(x.t-rec.tsIn)<1e-3&&x.midi===rec.midi);
-    if(!c) continue; used.add(c);
+    if(!c) continue; used.add(c); srcMap.set(rec.src,c.el);
     const bb=rec.els?relBox([rec.els.getBoundingClientRect()]):null; if(!bb) continue;
     items.push({kind:c.midi===null?"rest":"note", bb, xn:c, key:c.el});
   }
@@ -1712,24 +1795,78 @@ function buildItems(){
         if(ex.lines){
           const ce=ex.expression, me=ce&&ce.StartMultiExpression; if(!me) continue;
           const d=pick(pi, sh.SourceMeasures.indexOf(me.SourceMeasureParent), "wedge", me.Timestamp.RealValue, ce.DynamicType===1?"diminuendo":"crescendo") || pick(pi, sh.SourceMeasures.indexOf(me.SourceMeasureParent), "wedge", me.Timestamp.RealValue);
-          const bb=relBox(ex.lines.map(l=>l.SVGElement&&l.SVGElement.getBoundingClientRect()));
-          if(d&&bb) items.push({kind:"wedge", bb:{x:bb.x,y:bb.y-4,w:bb.w,h:bb.h+8}, xd:d, key:d.dt});
+          const nodes=ex.lines.map(l=>l.SVGElement).filter(Boolean);
+          if(d&&nodes.length) items.push({kind:"wedge", nodes, pel:d.k, pad:4, xd:d, key:d.dt});
         } else if(ex.mInstantaneousDynamicExpression){
           const di=ex.mInstantaneousDynamicExpression, me=di.ParentMultiExpression; if(!me) continue;
           const d=pick(pi, sh.SourceMeasures.indexOf(me.SourceMeasureParent), "dyn", me.Timestamp.RealValue);
-          let bb=ex.label&&ex.label.SVGNode?relBox([ex.label.SVGNode.getBoundingClientRect()]):null;
+          const nodes=ex.label&&ex.label.SVGNode?[ex.label.SVGNode]:null;
+          if(d&&nodes){ items.push({kind:"dyn", nodes, pel:d.k, xd:d, key:d.dt}); continue; }
+          let bb=null;
           if(!bb){ const b=ex.PositionAndShape, u=10*osmd.zoom, svg=host.querySelector("svg"), so=relBox([svg.getBoundingClientRect()]); bb={x:so.x+(b.AbsolutePosition.x+b.BorderLeft)*u, y:so.y+(b.AbsolutePosition.y+b.BorderTop)*u, w:(b.BorderRight-b.BorderLeft)*u, h:(b.BorderBottom-b.BorderTop)*u}; }
           if(d&&bb) items.push({kind:"dyn", bb, xd:d, key:d.dt});
         } else if(ex.label && ex.label.SVGNode && ex.sourceMultiExpression){
           const me=ex.sourceMultiExpression, text=(ex.label.label&&ex.label.label.text||"").trim();
           const d=pick(pi, sh.SourceMeasures.indexOf(me.SourceMeasureParent), "words", me.Timestamp.RealValue, text) || pick(pi, sh.SourceMeasures.indexOf(me.SourceMeasureParent), "words", me.Timestamp.RealValue);
-          const bb=relBox([ex.label.SVGNode.getBoundingClientRect()]);
-          if(d&&bb) items.push({kind:"words", bb, xd:d, key:d.dt});
+          if(d) items.push({kind:"words", nodes:[ex.label.SVGNode], pel:d.k, xd:d, key:d.dt});
         }
       }catch(e){}
     }
+    const perStart=new Map();
+    for(const gsl of (sl.GraphicalSlurs||[])){
+      try{
+        const sn=gsl.slur&&gsl.slur.startNote, nel=srcMap.get(sn); if(!nel||!gsl.SVGElement) continue;
+        const no=kid(nel,"notations"); const starts=no?[...no.getElementsByTagName("slur")].filter(x=>x.getAttribute("type")==="start"):[];
+        const k=perStart.get(sn)||0; perStart.set(sn,k+1);
+        const se=starts[k]||starts[0]; if(!se) continue;
+        const xn=XS.notes.find(x=>x.el===nel);
+        items.push({kind:"slur", nodes:[gsl.SVGElement], pel:se, pad:4, key:se, sxn:xn});
+      }catch(e){}
+    }
   })));
+  applyOffsets(items);
+  for(const it of items){ if(it.nodes){ const b=relBox(it.nodes.map(n=>n.getBoundingClientRect())); const pd=it.pad||0; it.bb=b?{x:b.x,y:b.y-pd,w:b.w,h:b.h+pd*2}:null; } }
+  items=items.filter(it=>it.bb);
 }
+function applyOffsets(list){
+  const z=osmd.zoom||1;
+  for(const it of list){
+    if(!it.nodes||!it.pel) continue;
+    const rx=+(it.pel.getAttribute("relative-x")||0), ry=+(it.pel.getAttribute("relative-y")||0);
+    for(const n of it.nodes){
+      if(!n.hasAttribute("data-ot")) n.setAttribute("data-ot", n.getAttribute("transform")||"");
+      const base=n.getAttribute("data-ot");
+      if(!rx&&!ry){ if(base) n.setAttribute("transform",base); else n.removeAttribute("transform"); continue; }
+      let k=1; try{ const svg=n.ownerSVGElement, a=n.getScreenCTM(), b=svg.getScreenCTM(); k=(a&&b&&b.a)?(a.a/b.a):1; }catch(e){}
+      n.setAttribute("transform", (base+` translate(${(rx*z)/k},${(-ry*z)/k})`).trim());
+    }
+  }
+}
+function refreshSelBox(){ if(!sel||!sel.nodes) return; applyOffsets([sel]); const b=relBox(sel.nodes.map(n=>n.getBoundingClientRect())); const pd=sel.pad||0; if(b) sel.bb={x:b.x,y:b.y-pd,w:b.w,h:b.h+pd*2}; drawSel(); }
+function lightEdit(fn){
+  const before=new XMLSerializer().serializeToString(xmlDoc);
+  fn(); undoStack.push(before); if(undoStack.length>80) undoStack.shift(); redoStack=[];
+  refreshSelBox(); edited=true; $("eSave").classList.add("dirty");
+  try{ localStorage.setItem("pr.score", new XMLSerializer().serializeToString(xmlDoc)); }catch(e){}
+  $("eUndo").disabled=false; $("eRedo").disabled=true;
+}
+function nudge(it,dxPx,dyPx){ const z=osmd.zoom||1; const rx=+(it.pel.getAttribute("relative-x")||0)+dxPx/z, ry=+(it.pel.getAttribute("relative-y")||0)-dyPx/z; it.pel.setAttribute("relative-x",String(Math.round(rx*10)/10)); it.pel.setAttribute("relative-y",String(Math.round(ry*10)/10)); }
+function resetPos(it){ it.pel.removeAttribute("relative-x"); it.pel.removeAttribute("relative-y"); }
+function placementOf(it){ return it.kind==="slur" ? (it.pel.getAttribute("placement")||"") : (it.xd.el.getAttribute("placement")||""); }
+function setPlacement(it,v){ if(it.kind==="slur") it.pel.setAttribute("placement",v); else it.xd.el.setAttribute("placement",v); }
+function posGroup(it){
+  const pl=placementOf(it);
+  const hint=document.createElement("span"); hint.className="elab2"; hint.textContent="ou arraste com o mouse";
+  return [grp(btn("Acima","Colocar acima da pauta",()=>edit(()=>setPlacement(it,"above")),pl==="above"?"on":""), btn("Abaixo","Colocar abaixo da pauta",()=>edit(()=>setPlacement(it,"below")),pl==="below"?"on":"")),
+          grp(btn("←","Mover para a esquerda (seta; Shift = 10 px)",()=>lightEdit(()=>nudge(it,-2,0))), btn("↑","Mover para cima",()=>lightEdit(()=>nudge(it,0,-2))), btn("↓","Mover para baixo",()=>lightEdit(()=>nudge(it,0,2))), btn("→","Mover para a direita",()=>lightEdit(()=>nudge(it,2,0))), btn("Posição original","Remover o deslocamento manual",()=>lightEdit(()=>resetPos(it))), hint)];
+}
+function removeSlur(it){
+  const num=it.pel.getAttribute("number")||"1", part=it.pel.closest("part");
+  const all=[...part.getElementsByTagName("slur")], i=all.indexOf(it.pel);
+  const stop=all.slice(i+1).find(x=>x.getAttribute("type")==="stop"&&(x.getAttribute("number")||"1")===num);
+  for(const sEl of [it.pel,stop]){ if(!sEl) continue; const no=sEl.parentNode; sEl.remove(); if(no&&!no.children.length) no.remove(); }
+}
+function setStem(n,dir){ for(const m of chordGroup(n)){ let st=kid(m,"stem"); if(!st){ st=XE("stem"); const ref=["notehead","staff","beam","notations","lyric"].map(t=>kid(m,t)).find(Boolean); m.insertBefore(st,ref||null); } st.textContent=dir; } }
 
 /* selection */
 function selectAt(cx,cy){
@@ -1757,7 +1894,7 @@ function grp(...kids){ const g=document.createElement("div"); g.className="egrp"
 function renderEbar(){
   const box=$("eCtx"); box.textContent=""; const lab=$("eLab");
   $("eUndo").disabled=!undoStack.length; $("eRedo").disabled=!redoStack.length;
-  if(!sel){ lab.textContent="Clique numa nota, pausa, dinâmica, crescendo ou texto para editar."; return; }
+  if(!sel){ lab.textContent="Clique numa nota, pausa, dinâmica, hairpin, ligadura ou texto para editar."; return; }
   if(sel.kind==="note"||sel.kind==="rest"){
     const n=sel.xn.el, ty=noteType(n), dot=!!kid(n,"dot");
     lab.innerHTML=`<b>${sel.kind==="note"?"NOTA":"PAUSA"}</b> · c. ${measNum(sel.xn.mi)} · ${pitchName(n)}${ty?" · "+(TYPE_PT[ty]||ty)+(dot?" pontuada":""):""}`;
@@ -1771,6 +1908,7 @@ function renderEbar(){
       const hp=document.createElement("select"); hp.className="esel"; hp.title="Começar crescendo ou diminuendo nesta nota e terminar no fim do compasso"; hp.innerHTML=`<option value="">+ hairpin</option><option value="crescendo">crescendo</option><option value="diminuendo">diminuendo</option>`;
       hp.onchange=()=>{ if(hp.value) edit(()=>addWedge(n,hp.value)); };
       box.append(grp(ds,hp));
+      { const st=txt(chordBase(n),"stem"); box.append(grp(btn("Haste ↑","Haste para cima",()=>edit(()=>setStem(n,"up")),st==="up"?"on":""), btn("Haste ↓","Haste para baixo",()=>edit(()=>setStem(n,"down")),st==="down"?"on":""))); }
       box.append(grp(btn("Pausa","Transformar em pausa (Delete)",()=>edit(()=>toRest(n)),"warn")));
     } else box.append(grp(btn("Virar nota","Transformar a pausa em nota",()=>edit(()=>restToNote(n)))));
     // marks at this beat
@@ -1778,16 +1916,19 @@ function renderEbar(){
     if(marks.length){ const g=grp(); g.classList.add("marks"); const l=document.createElement("span"); l.className="elab2"; l.textContent="Neste ponto:"; g.append(l); for(const d of marks) g.append(markChip(d)); box.append(g); }
   } else if(sel.kind==="dyn"){
     const d=sel.xd; lab.innerHTML=`<b>DINÂMICA</b> · c. ${measNum(d.mi)} · ${d.val}`;
-    box.append(grp(...DYNS.map(v=>btn(v,"Trocar para "+v,()=>edit(()=>setDyn(d,v)),v===d.val?"on dyn":"dyn"))), grp(btn("Excluir","Excluir dinâmica (Delete)",()=>edit(()=>removeDT(d.dt)),"warn")));
+    box.append(grp(...DYNS.map(v=>btn(v,"Trocar para "+v,()=>edit(()=>setDyn(d,v)),v===d.val?"on dyn":"dyn"))), ...posGroup(sel), grp(btn("Excluir","Excluir dinâmica (Delete)",()=>edit(()=>removeDT(d.dt)),"warn")));
   } else if(sel.kind==="wedge"){
     const d=sel.xd; lab.innerHTML=`<b>${d.val==="crescendo"?"CRESCENDO":"DIMINUENDO"}</b> · c. ${measNum(d.mi)}`;
-    box.append(grp(btn("Crescendo","",()=>edit(()=>d.k.setAttribute("type","crescendo")),d.val==="crescendo"?"on":""), btn("Diminuendo","",()=>edit(()=>d.k.setAttribute("type","diminuendo")),d.val==="diminuendo"?"on":"")), grp(btn("Excluir","Excluir hairpin (Delete)",()=>edit(()=>removeWedge(d)),"warn")));
+    box.append(grp(btn("Crescendo","",()=>edit(()=>d.k.setAttribute("type","crescendo")),d.val==="crescendo"?"on":""), btn("Diminuendo","",()=>edit(()=>d.k.setAttribute("type","diminuendo")),d.val==="diminuendo"?"on":"")), ...posGroup(sel), grp(btn("Excluir","Excluir hairpin (Delete)",()=>edit(()=>removeWedge(d)),"warn")));
   } else if(sel.kind==="words"){
     const d=sel.xd; lab.innerHTML=`<b>TEXTO</b> · c. ${measNum(d.mi)}`;
     const inp=document.createElement("input"); inp.type="text"; inp.className="etext"; inp.value=d.k.textContent; inp.id="eTextIn";
     const apply=()=>{ const v=inp.value; if(v.trim()&&v!==d.k.textContent) edit(()=>{ d.k.textContent=v; }); };
     inp.onkeydown=e=>{ e.stopPropagation(); if(e.key==="Enter") apply(); if(e.key==="Escape") setSel(null); };
-    box.append(grp(inp, btn("Aplicar","",apply)), grp(btn("Excluir","Excluir texto",()=>edit(()=>removeDT(d.dt)),"warn")));
+    box.append(grp(inp, btn("Aplicar","",apply)), ...posGroup(sel), grp(btn("Excluir","Excluir texto",()=>edit(()=>removeDT(d.dt)),"warn")));
+  } else if(sel.kind==="slur"){
+    lab.innerHTML=`<b>LIGADURA</b>${sel.sxn?" · c. "+measNum(sel.sxn.mi):""}`;
+    box.append(...posGroup(sel), grp(btn("Excluir","Excluir ligadura (Delete)",()=>edit(()=>removeSlur(sel)),"warn")));
   }
 }
 function markChip(d){
@@ -1907,7 +2048,7 @@ async function reloadFromDoc(){
 }
 async function undo(){ if(!undoStack.length||editing) return; redoStack.push(new XMLSerializer().serializeToString(xmlDoc)); xmlDoc=new DOMParser().parseFromString(undoStack.pop(),"application/xml"); selKey=null; sel=null; await reloadFromDoc(); }
 async function redo(){ if(!redoStack.length||editing) return; undoStack.push(new XMLSerializer().serializeToString(xmlDoc)); xmlDoc=new DOMParser().parseFromString(redoStack.pop(),"application/xml"); selKey=null; sel=null; await reloadFromDoc(); }
-function afterRender(){ if(editMode){ buildItems(); reselect(); } else { items=[]; } }
+function afterRender(){ try{ buildItems(); }catch(e){ console.error(e); items=[]; } if(editMode) reselect(); }
 
 async function saveXml(){
   if(!xmlDoc){ toast("Nada para salvar."); return; }
@@ -1948,10 +2089,11 @@ function editKeys(e){
   if(!sel) return e.key==="Escape" ? (setEdit(false),true) : false;
   const n=sel.xn&&sel.xn.el;
   if(e.key==="Escape"){ setSel(null); return true; }
-  if(e.key==="ArrowLeft"){ e.preventDefault(); neighbor(-1); return true; }
-  if(e.key==="ArrowRight"){ e.preventDefault(); neighbor(1); return true; }
+  if(!sel.pel && e.key==="ArrowLeft"){ e.preventDefault(); neighbor(-1); return true; }
+  if(!sel.pel && e.key==="ArrowRight"){ e.preventDefault(); neighbor(1); return true; }
   if(sel.kind==="note"&&(e.key==="ArrowUp"||e.key==="ArrowDown")){ e.preventDefault(); const d=(e.key==="ArrowUp"?1:-1)*((mod||e.shiftKey)?12:1); edit(()=>shiftPitch(n,d)); return true; }
-  if(e.key==="Delete"||e.key==="Backspace"){ e.preventDefault(); if(sel.kind==="note") edit(()=>toRest(n)); else if(sel.kind==="dyn"||sel.kind==="words") edit(()=>removeDT(sel.xd.dt)); else if(sel.kind==="wedge") edit(()=>removeWedge(sel.xd)); return true; }
+  if(sel.pel && ["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key)){ e.preventDefault(); const st=e.shiftKey?10:1, it=sel; const d={ArrowUp:[0,-st],ArrowDown:[0,st],ArrowLeft:[-st,0],ArrowRight:[st,0]}[e.key]; lightEdit(()=>nudge(it,d[0],d[1])); return true; }
+  if(e.key==="Delete"||e.key==="Backspace"){ e.preventDefault(); if(sel.kind==="note") edit(()=>toRest(n)); else if(sel.kind==="dyn"||sel.kind==="words") edit(()=>removeDT(sel.xd.dt)); else if(sel.kind==="wedge") edit(()=>removeWedge(sel.xd)); else if(sel.kind==="slur") edit(()=>removeSlur(sel)); return true; }
   if(n && "34567".includes(e.key) && !mod){ const t={"7":"whole","6":"half","5":"quarter","4":"eighth","3":"16th"}[e.key]; edit(()=>setDuration(n,t,false)); return true; }
   if(n && e.key==="."){ edit(()=>setDuration(n,noteType(n)||"quarter",!kid(n,"dot"))); return true; }
   return false;
