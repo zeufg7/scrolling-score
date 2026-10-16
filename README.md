@@ -17,7 +17,9 @@ Everything runs in your browser. Your files are never uploaded anywhere.
 - **Timeline** showing video frames, the audio waveform and the score's bars on one time axis. Drag the score lane to line up the start, and drag any bar line to pin that bar to the right moment.
 - **Tap to sync:** press play and hit `T` on each downbeat.
 - **Multi-bar rests** from Dorico and Cubase are timed correctly.
-- **Video export** as Horizontal 16:9 (YouTube), Vertical 9:16 (Shorts and TikTok) or Reels, with Instagram's safe areas kept clear.
+- **Video export** as Horizontal 16:9 (YouTube), Vertical 9:16 (Shorts and TikTok) or Reels, with Instagram's safe areas kept clear. A live preview lets you set the score size and position, the band height and the video size before recording.
+- **Score editing:** click any note, rest, dynamic, hairpin or text to select it, then change pitch, duration, articulations and dynamics, turn notes into rests, add hairpins, edit texts and tempo marks. Undo/redo, and save the edited MusicXML.
+- **Adjustable reading line:** height, thickness and position.
 - **Guide sound, metronome, practice loop** by bars, and playback speed from 40 to 150%.
 - **Recording mode** that hides the interface, with dark, paper or chroma-green backgrounds for keying in OBS.
 
@@ -26,7 +28,8 @@ Everything runs in your browser. Your files are never uploaded anywhere.
 1. Open the page and click **Abrir partitura** (Open score), or drag the file onto the window.
 2. Click **Áudio / vídeo** and load the recording.
 3. In the **timeline**, drag the score lane until the INÍCIO (start) marker lands where the music begins. If the tempo moves, pin more bars by dragging their bar lines, or press `T` on each downbeat while the music plays.
-4. To make a video, click **Exportar** (Export) and pick a format. Recording happens in real time, so keep the tab open and visible until it finishes.
+4. To make a video, click **Exportar** (Export). Pick a format, adjust the framing in the preview, then click **Gravar vídeo** (Record video). Recording happens in real time, so keep the tab open and visible until it finishes.
+5. To fix the score, click **Editar** (Edit), select an item and use the bar that appears at the top. Save with **Salvar MusicXML**.
 
 ### Exporting your score as MusicXML
 
@@ -50,6 +53,20 @@ Everything runs in your browser. Your files are never uploaded anywhere.
 | S C L | Guide sound, click, loop |
 | [ ] | Loop start / end |
 | + − | Score size |
+
+### In edit mode
+
+| Key | Action |
+|---|---|
+| ↑ ↓ | Semitone up / down |
+| Ctrl + ↑ ↓ | Octave up / down |
+| ← → | Previous / next note |
+| 7 6 5 4 3 | Whole, half, quarter, eighth, 16th (Dorico style) |
+| . | Toggle dot |
+| Delete | Turn note into rest / delete mark |
+| Ctrl + Z / Ctrl + Y | Undo / redo |
+| Ctrl + S | Save MusicXML |
+| Esc | Deselect / leave edit mode |
 
 ## Running it locally
 
