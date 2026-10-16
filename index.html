@@ -230,6 +230,48 @@ body.rec .tline{display:none}
 .camname{flex:1;min-width:0;width:auto}
 .camst{font-family:var(--mono);font-size:11px;color:var(--fg2);white-space:nowrap}
 .btn.sm{padding:5px 9px;font-size:12px}
+.pdfhost{position:relative}
+.pw{position:fixed;inset:0;z-index:55;background:var(--bg);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px)}
+.pw-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px max(16px,env(safe-area-inset-right,0px)) 12px max(16px,env(safe-area-inset-left,0px));border-bottom:1px solid var(--line2)}
+.pw-steps{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.pw-steps button{background:var(--card);border:0;padding:8px 12px;cursor:pointer;font-size:13px;color:var(--fg2)}
+.pw-steps button+button{border-left:1px solid var(--line)}
+.pw-steps button[aria-pressed=true]{background:var(--amber);color:var(--amber-ink);font-weight:600}
+.pw-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px));border-bottom:1px solid var(--line2);background:var(--card)}
+.pw-hint{font-size:12px;color:var(--mute);min-width:0}
+.pw-body{flex:1;min-height:0;overflow:auto;padding:16px max(16px,env(safe-area-inset-right,0px)) 32px max(16px,env(safe-area-inset-left,0px))}
+.pw-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(13,16,21,.86);font-family:var(--mono);letter-spacing:.16em;font-size:12px;color:var(--fg2);z-index:3}
+.pw-pages{display:flex;flex-direction:column;gap:24px;align-items:center}
+.pw-page{position:relative;width:min(980px,100%);background:#fff;box-shadow:0 6px 30px rgba(0,0,0,.4);cursor:crosshair;touch-action:none;user-select:none}
+.pw-page canvas{display:block;width:100%;height:100%}
+.pw-pnum{position:absolute;left:0;top:-20px;font-family:var(--mono);font-size:11px;letter-spacing:.16em;color:var(--mute)}
+.pw-box{position:absolute;border:2px solid var(--amber);background:rgba(224,164,88,.10);cursor:move}
+.pw-box.on{background:rgba(224,164,88,.18);box-shadow:0 0 0 3px rgba(224,164,88,.35)}
+.pw-n{position:absolute;left:-2px;top:-2px;background:var(--amber);color:var(--amber-ink);font-family:var(--mono);font-size:12px;font-weight:600;padding:1px 7px;border-radius:0 0 4px 0}
+.pw-del{position:absolute;right:-2px;top:-2px;width:24px;height:24px;border:0;border-radius:0 0 0 4px;background:#C2583E;color:#fff;cursor:pointer;font-size:12px}
+.pw-box .hd{position:absolute;background:transparent}
+.pw-box .hd.l,.pw-box .hd.r{top:0;bottom:0;width:12px;cursor:ew-resize}
+.pw-box .hd.l{left:-7px}.pw-box .hd.r{right:-7px}
+.pw-box .hd.t,.pw-box .hd.b{left:0;right:0;height:12px;cursor:ns-resize}
+.pw-box .hd.t{top:-7px}.pw-box .hd.b{bottom:-7px}
+.pw-strip{overflow-x:auto;overflow-y:hidden;background:#fff;border-radius:6px;padding:28px 0 10px}
+.pw-stripin{position:relative;cursor:copy;touch-action:none}
+.pw-piece{position:absolute;top:0}
+.pw-mk{position:absolute;top:-24px;bottom:-4px;width:15px;margin-left:-7px;cursor:ew-resize}
+.pw-mk::before{content:"";position:absolute;left:6px;top:20px;bottom:0;width:3px;background:#2E7BD6;border-radius:2px}
+.pw-mk span{position:absolute;left:8px;top:0;font-family:var(--mono);font-size:11px;color:#1d3d66;white-space:nowrap;background:#E6EEF8;padding:0 4px;border-radius:3px}
+.pw-mk.start::before{background:var(--amber)}
+.pw-mk.start span{background:var(--amber);color:var(--amber-ink)}
+.pw-count{font-size:13px;color:var(--fg2)}
+.pw-bar{position:absolute;bottom:-28px;height:20px;font-family:var(--mono);font-size:11px;background:#F1F3F6;color:#3A4352;border:1px solid #C9D0DA;border-radius:3px;padding:0 5px;cursor:pointer;overflow:hidden;white-space:nowrap}
+.pw-bar.multi{background:var(--amber);color:var(--amber-ink);border-color:var(--amber)}
+.pw-span{position:absolute;bottom:-30px;width:64px;height:24px;font-family:var(--mono);font-size:12px;z-index:3}
+.pw-strip{padding-bottom:40px!important}
+.pw-zoom{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--fg2)}
+.pw-zoom input{width:120px}
+.pw-form{display:flex;flex-direction:column;gap:16px;max-width:420px}
+.pw-form label{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--fg2)}
+.pw-sum{font-size:14px;color:var(--fg)}
 .toast{position:fixed;left:50%;bottom:calc(120px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--card2);border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:6px;padding:10px 14px;font-size:13px;z-index:40;max-width:calc(100% - 32px);box-shadow:0 8px 30px rgba(0,0,0,.4)}
 
 /* recording mode: everything but the stage disappears */
@@ -261,7 +303,7 @@ body.rec .stage{cursor:none}
       <span class="t" id="scoreName">Tema de exemplo</span>
     </div>
     <div class="actions">
-      <button class="btn primary" id="btnScore" title="Abrir MusicXML (.musicxml, .xml, .mxl)">
+      <button class="btn primary" id="btnScore" title="Abrir partitura: MusicXML (.musicxml, .xml, .mxl) ou PDF">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg><span>Abrir partitura</span></button>
       <button class="btn" id="btnAudio" title="Abrir áudio ou vídeo (mp3, wav, m4a, mp4, mov, webm)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h2l3-8 4 16 3-10 2 2h4"/></svg><span id="audioLabel">Áudio / vídeo</span></button>
@@ -274,13 +316,14 @@ body.rec .stage{cursor:none}
       <button class="btn" id="btnRec" title="Modo gravação (H)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg><span>Modo gravação</span></button>
     </div>
-    <input type="file" id="fileScore" accept=".musicxml,.xml,.mxl,application/vnd.recordare.musicxml+xml,application/vnd.recordare.musicxml" hidden>
+    <input type="file" id="fileScore" accept=".musicxml,.xml,.mxl,.pdf,application/pdf,application/vnd.recordare.musicxml+xml,application/vnd.recordare.musicxml" hidden>
     <input type="file" id="fileAudio" accept="audio/*,video/*,.mp3,.wav,.m4a,.ogg,.flac,.mp4,.mov,.webm,.mkv" hidden>
   </header>
 
   <main class="stage horizontal" id="stage" tabindex="0" aria-label="Partitura">
     <div class="track" id="track">
       <div id="osmd"></div>
+      <div id="pdfhost" class="pdfhost" hidden></div>
       <div class="loopzone" id="loopzone" hidden></div>
       <div class="bar" id="bar"></div>
       <div class="selbox" id="selBox" hidden></div>
@@ -531,6 +574,18 @@ body.rec .stage{cursor:none}
   </div>
 </div>
 
+<div class="pw" id="pdfw" hidden role="dialog" aria-modal="true" aria-label="Montar partitura em PDF">
+  <div class="pw-head">
+    <span class="tl-lab" id="pwLab">PDF</span>
+    <div class="pw-steps" id="pwSteps"><button data-s="1" aria-pressed="true">1 · Recortar sistemas</button><button data-s="2" aria-pressed="false">2 · Barras de compasso</button><button data-s="3" aria-pressed="false">3 · Compasso e andamento</button></div>
+    <span class="spacer"></span>
+    <button class="btn" id="pwCancel">Cancelar</button><button class="btn" id="pwBack" hidden>Voltar</button><button class="btn primary" id="pwNext">Avançar</button>
+  </div>
+  <div class="pw-tools" id="pwTools"></div>
+  <div class="pw-body" id="pwBody"></div>
+  <div class="pw-loading" id="pwLoading" hidden></div>
+</div>
+
 <div class="toast" id="toast" hidden></div>
 <div class="recexit vis-hide" id="recexit">MODO GRAVAÇÃO · APERTE H PARA SAIR</div>
 
@@ -541,7 +596,8 @@ body.rec .stage{cursor:none}
 (() => {
 "use strict";
 const $ = id => document.getElementById(id);
-const stage=$("stage"), track=$("track"), host=$("osmd"), bar=$("bar"), playline=$("playline");
+const stage=$("stage"), track=$("track"), bar=$("bar"), playline=$("playline");
+let host=$("osmd");
 const audio=$("audio");
 
 /* ---------- settings ---------- */
@@ -551,7 +607,7 @@ try { Object.assign(S, JSON.parse(localStorage.getItem("pr.settings")||"{}")); }
 const save = () => { try { localStorage.setItem("pr.settings", JSON.stringify(S)); } catch(e){} };
 
 const BGS = { zeufg:{stage:"#0D1015",ink:"#EDEFF2",ink2:"#9AA3AE"}, paper:{stage:"#EEF0F2",ink:"#14181F",ink2:"#3A4352"}, chroma:{stage:"#00B140",ink:"#FFFFFF",ink2:"#F2FFF6"} };
-function applyBg(){ const b=BGS[S.bg]||BGS.zeufg; const r=document.documentElement.style; r.setProperty("--stage",b.stage); r.setProperty("--ink",b.ink); r.setProperty("--ink2",b.ink2); }
+function applyBg(){ const b=BGS[S.bg]||BGS.zeufg; const r=document.documentElement.style; r.setProperty("--stage",b.stage); r.setProperty("--ink",b.ink); r.setProperty("--ink2",b.ink2); if(typeof pdfMode!=="undefined"&&pdfMode&&PDF) render(); }
 
 let toastT; function toast(msg){ const t=$("toast"); t.textContent=msg; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true,2600); }
 
@@ -623,6 +679,7 @@ async function unzipMxl(buf){
 }
 
 async function loadScore(src, name, fromSample){
+  leavePdf();
   $("loading").hidden=false;
   src=fillEmptyMeasures(src);
   try{
@@ -642,7 +699,7 @@ async function loadScore(src, name, fromSample){
   buildInstList();
   stop(); pos=0;
   render();
-  if(!fromSample){ try{ if(typeof src==="string" && src.length<4e6){ localStorage.setItem("pr.score",src); localStorage.setItem("pr.scoreName",name||title);} }catch(e){} }
+  if(!fromSample){ try{ localStorage.setItem("pr.last", JSON.stringify({kind:"xml"})); }catch(e){} try{ if(typeof src==="string" && src.length<4e6){ localStorage.setItem("pr.score",src); localStorage.setItem("pr.scoreName",name||title);} }catch(e){} }
   return true;
 }
 
@@ -662,6 +719,7 @@ function buildInstList(){
 
 function render(){
   if(!loaded) return Promise.resolve();
+  if(pdfMode&&PDF){ $("segMode").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v==="horizontal"))); return renderPdf(); }
   $("loading").hidden=false;
   const horiz = S.mode==="horizontal";
   osmd.setOptions({ renderSingleHorizontalStaffline: horiz });
@@ -1051,6 +1109,7 @@ function schedule(t){
 
 /* ---------- files ---------- */
 function readScoreFile(file){
+  if(/\.pdf$/i.test(file.name)||file.type==="application/pdf"){ openPdf(file); return; }
   const isMxl=/\.mxl$/i.test(file.name);
   const r=new FileReader();
   r.onload=async()=>{
@@ -1088,7 +1147,7 @@ document.addEventListener("dragenter",e=>{ e.preventDefault(); dragDepth++; $("d
 document.addEventListener("dragleave",e=>{ dragDepth=Math.max(0,dragDepth-1); if(!dragDepth) $("drop").hidden=true; });
 document.addEventListener("dragover",e=>e.preventDefault());
 document.addEventListener("drop",e=>{ e.preventDefault(); dragDepth=0; $("drop").hidden=true;
-  for(const f of e.dataTransfer.files){ if(/\.(musicxml|xml|mxl)$/i.test(f.name)) readScoreFile(f); else if(f.type.startsWith("audio")||f.type.startsWith("video")||/\.(mp3|wav|m4a|ogg|flac|aac|mp4|mov|webm|mkv)$/i.test(f.name)) readAudioFile(f); }
+  for(const f of e.dataTransfer.files){ if(/\.(musicxml|xml|mxl|pdf)$/i.test(f.name)) readScoreFile(f); else if(f.type.startsWith("audio")||f.type.startsWith("video")||/\.(mp3|wav|m4a|ogg|flac|aac|mp4|mov|webm|mkv)$/i.test(f.name)) readAudioFile(f); }
 });
 
 /* ---------- stage interaction: drag to scrub, click to jump ---------- */
@@ -1671,6 +1730,7 @@ function layoutFor(f, withVideo, P){
 
 /* rasterize the engraved score once, in ink and in amber */
 async function rasterScore(scale){
+  if(pdfMode&&PDF) return rasterPdf(scale);
   const svg=host.querySelector("svg"); if(!svg) throw new Error("sem partitura");
   clearHl();
   const cs=getComputedStyle(document.documentElement);
@@ -2345,6 +2405,7 @@ async function saveXml(){
 }
 
 function setEdit(on){
+  if(on&&pdfMode){ if(PW){ $("pdfw").hidden=false; pwShow(1); } else toast("Abra o PDF de novo para ajustar os recortes."); return; }
   if(on&&!xmlDoc){ toast("Abra uma partitura MusicXML para editar."); return; }
   editMode=on; stage.classList.toggle("editing",on); $("ebar").hidden=!on; $("btnEdit").classList.toggle("on",on);
   if(on){ requestAnimationFrame(()=>{ frame(true); buildItems(); renderEbar(); }); } else { setSel(null); }
@@ -2378,13 +2439,400 @@ function editKeys(e){
   return false;
 }
 
+/* ---------- PDF scores: crop systems, stitch them into a strip, mark the bars ---------- */
+const PDFJS="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
+const PAGE_W=1700;
+let pdfMode=false, PDF=null, PW=null;
+function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement("script"); s.src=src; s.onload=res; s.onerror=()=>rej(new Error(src)); document.head.append(s); }); }
+async function ensurePdfJs(){
+  if(window.pdfjsLib) return;
+  await loadScript(PDFJS+"pdf.min.js");
+  await loadScript(PDFJS+"pdf.worker.min.js"); // runs on the main thread; no separate worker needed
+  pdfjsLib.GlobalWorkerOptions.workerSrc=PDFJS+"pdf.worker.min.js";
+}
+/* IndexedDB keeps the last PDF so it reopens with the page */
+function idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open("scrolling-score",1); r.onupgradeneeded=()=>r.result.createObjectStore("files"); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+async function idbPut(k,v){ try{ const db=await idb(); await new Promise((res,rej)=>{ const tx=db.transaction("files","readwrite"); tx.objectStore("files").put(v,k); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); }); }catch(e){} }
+async function idbGet(k){ try{ const db=await idb(); return await new Promise((res,rej)=>{ const r=db.transaction("files").objectStore("files").get(k); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }catch(e){ return null; } }
+
+function pwBusy(msg){ const l=$("pwLoading"); if(msg){ l.textContent=msg; l.hidden=false; } else l.hidden=true; }
+async function loadPdfPages(file, onProgress){
+  await ensurePdfJs();
+  const data=new Uint8Array(await file.arrayBuffer());
+  const doc=await pdfjsLib.getDocument({data, isEvalSupported:false}).promise;
+  const pages=[];
+  for(let i=1;i<=doc.numPages;i++){
+    onProgress&&onProgress(i,doc.numPages);
+    const pg=await doc.getPage(i), vp0=pg.getViewport({scale:1}), vp=pg.getViewport({scale:PAGE_W/vp0.width});
+    const c=document.createElement("canvas"); c.width=Math.round(vp.width); c.height=Math.round(vp.height);
+    const g=c.getContext("2d",{willReadFrequently:true}); g.fillStyle="#fff"; g.fillRect(0,0,c.width,c.height);
+    await pg.render({canvasContext:g, viewport:vp}).promise;
+    const id=g.getImageData(0,0,c.width,c.height).data, lum=new Uint8Array(c.width*c.height);
+    for(let k=0,j=0;k<lum.length;k++,j+=4) lum[k]=(id[j]*0.3+id[j+1]*0.59+id[j+2]*0.11)|0;
+    pages.push({c, w:c.width, h:c.height, lum});
+  }
+  return pages;
+}
+
+/* staff and system detection on a grayscale page */
+const DARK=150;
+function findStaves(P, x0=0, x1=P.w, y0=0, y1=P.h){
+  const {w,lum}=P, rows=[]; const span=x1-x0;
+  for(let y=y0;y<y1;y++){ let n=0; const o=y*w; for(let x=x0;x<x1;x+=2) if(lum[o+x]<DARK) n++; rows.push(n*2/span); }
+  // staff lines run almost the whole width; rows of ledger lines are broken and much lighter
+  const lines=[], lw=[]; let run=null;
+  rows.forEach((r,i)=>{ const y=i+y0; if(r>0.45){ if(run&&y===run.end+1){ run.end=y; run.m=Math.max(run.m,r); } else { if(run){ lines.push((run.start+run.end)/2); lw.push(run.m); } run={start:y,end:y,m:r}; } } });
+  if(run){ lines.push((run.start+run.end)/2); lw.push(run.m); }
+  const okGroup=i=>{ if(i+4>=lines.length) return null; const g=[1,2,3,4].map(k=>lines[i+k]-lines[i+k-1]), m=g.reduce((a,b)=>a+b)/4; return (m>=4&&m<=60&&g.every(v=>Math.abs(v-m)<m*0.3)) ? Math.min(...lw.slice(i,i+5)) : null; };
+  const staves=[];
+  for(let i=0;i+4<lines.length;){
+    let sc=okGroup(i); const sc2=okGroup(i+1);
+    if(sc!==null && sc2!==null && sc2>sc*1.25){ i++; sc=sc2; }
+    const g=[1,2,3,4].map(k=>lines[i+k]-lines[i+k-1]), m=g.reduce((a,b)=>a+b)/4;
+    if(sc!==null){
+      const top=lines[i], bot=lines[i+4];
+      let xl=x1, xr=x0; const ys=[0,1,2,3,4].map(k=>Math.round(lines[i+k]));
+      for(let x=x0;x<x1;x++){ let c=0; for(const yy of ys) if(lum[yy*w+x]<DARK||lum[(yy+1)*w+x]<DARK) c++; if(c>=4){ if(x<xl) xl=x; xr=x; } }
+      staves.push({top,bot,sp:m,xl,xr}); i+=5;
+    } else i++;
+  }
+  return staves;
+}
+function connected(P,a,b){ // brace or bracket joining two staves
+  const {w,lum}=P;
+  for(let x=Math.max(0,Math.round(a.xl-3*a.sp)); x<=Math.round(a.xl+a.sp); x++){
+    let dark=0, n=0; for(let y=Math.round(a.bot)+2; y<Math.round(b.top)-1; y++){ n++; if(lum[y*w+x]<DARK) dark++; }
+    if(n>0 && dark/n>0.9) return true;
+  }
+  return false;
+}
+function detectSystems(P, pi){
+  const st=findStaves(P); if(!st.length) return [];
+  const groups=[]; let cur=[st[0]];
+  for(let i=1;i<st.length;i++){ if(connected(P,st[i-1],st[i])) cur.push(st[i]); else { groups.push(cur); cur=[st[i]]; } }
+  groups.push(cur);
+  const out=groups.map(g=>{ const sp=g[0].sp, xl=Math.min(...g.map(s=>s.xl)), xr=Math.max(...g.map(s=>s.xr));
+    return { p:pi, x:Math.max(0,xl-2.5*sp), w:Math.min(P.w,xr+1.2*sp)-Math.max(0,xl-2.5*sp), top:g[0].top-4.5*sp, bot:g[g.length-1].bot+4.5*sp }; });
+  for(let i=0;i<out.length;i++){ const prev=out[i-1], next=out[i+1];
+    if(prev && out[i].top<prev.bot){ const mid=(prev.bot+out[i].top)/2; prev.bot=mid; out[i].top=mid; }
+    if(next && out[i].bot>next.top){ const mid=(out[i].bot+next.top)/2; out[i].bot=mid; next.top=mid; } }
+  return out.map(o=>({p:o.p, x:Math.round(o.x), y:Math.round(Math.max(0,o.top)), w:Math.round(o.w), h:Math.round(Math.min(P.h,o.bot)-Math.max(0,o.top))}));
+}
+
+/* stitch crops into one strip, aligned on the top staff line, at a common staff size */
+function stitch(pages, crops){
+  const info=crops.map(c=>{ const P=pages[c.p]; const st=findStaves(P, Math.max(0,c.x), Math.min(P.w,c.x+c.w), Math.max(0,c.y), Math.min(P.h,c.y+c.h)); return {c,st}; });
+  const sps=info.flatMap(i=>i.st.map(s=>s.sp)).sort((a,b)=>a-b); const sp=sps.length?sps[sps.length>>1]:12;
+  const items=info.map(({c,st})=>{
+    const own=st.length?st[0].sp:sp, k=Math.max(0.6,Math.min(1.6,sp/own));
+    const top=st.length?st[0].top:c.y+c.h*0.3, bot=st.length?st[st.length-1].bot:c.y+c.h*0.7;
+    return {c, st, k, w:Math.round(c.w*k), above:(top-c.y)*k, staffH:(bot-top)*k, h:c.h*k};
+  });
+  const A=Math.max(...items.map(i=>i.above)), H=Math.ceil(Math.max(...items.map(i=>A-i.above+i.h)));
+  let x=0; const pieces=[];
+  for(const it of items){
+    const yOff=A-it.above, P=pages[it.c.p];
+    const gc=document.createElement("canvas"); gc.width=Math.max(1,it.w); gc.height=H;
+    const g=gc.getContext("2d",{willReadFrequently:true}); g.fillStyle="#fff"; g.fillRect(0,0,gc.width,H);
+    g.drawImage(P.c, it.c.x, it.c.y, it.c.w, it.c.h, 0, yOff, it.w, it.h);
+    const id=g.getImageData(0,0,gc.width,H), d=id.data, lum=new Uint8Array(gc.width*H);
+    for(let k=0,j=0;k<lum.length;k++,j+=4){ const L=(d[j]*0.3+d[j+1]*0.59+d[j+2]*0.11)|0; lum[k]=L; const a=Math.max(0,Math.min(255,(235-L)*1.35)); d[j]=d[j+1]=d[j+2]=255; d[j+3]=a; }
+    const mc=document.createElement("canvas"); mc.width=gc.width; mc.height=H; mc.getContext("2d").putImageData(id,0,0);
+    const staves=it.st.map(s=>({top:A+(s.top-it.st[0].top)*it.k, bot:A+(s.bot-it.st[0].top)*it.k, sp:s.sp*it.k, xl:(s.xl-it.c.x)*it.k}));
+    pieces.push({x, w:gc.width, gray:gc, lum, mask:mc, staves, staffTop:A, staffBot:A+it.staffH});
+    x+=gc.width;
+  }
+  return {pieces, W:x, H, sp, staffTop:A, staffBot:Math.max(...pieces.map(p=>p.staffBot))};
+}
+function detectBarlines(strip){
+  const out=[]; strip.headerEnd=null;
+  for(const pc of strip.pieces){
+    if(!pc.staves.length) continue;
+    const {w,lum}=pc, H=strip.H, sp=pc.staves[0].sp, startX=Math.max(...pc.staves.map(s=>s.xl))+2.5*sp;
+    const L=(x,y)=>lum[y*w+x];
+    const colDark=(x,y)=>Math.min(L(Math.max(0,x-1),y),L(x,y),L(Math.min(w-1,x+1),y))<185;
+    const lineRows=new Set(); for(const s of pc.staves){ for(let k=0;k<5;k++){ const yy=Math.round(s.top+(s.bot-s.top)*k/4); for(let d=-2;d<=2;d++) lineRows.add(yy+d); } }
+    // dark fraction of a small box beside an end of the stroke, ignoring the staff lines
+    const blob=(x0,x1,y0,y1)=>{ let d=0,n=0; for(let y=Math.max(0,Math.round(y0));y<=Math.min(H-1,Math.round(y1));y++){ if(lineRows.has(y)) continue; for(let x=Math.max(0,Math.round(x0));x<=Math.min(w-1,Math.round(x1));x++){ n++; if(L(x,y)<DARK) d++; } } return n?d/n:0; };
+    const hit=[];
+    const xs0=Math.round(Math.max(0,startX));
+    for(let x=xs0; x<w; x++){
+      let ok=true;
+      for(const s of pc.staves){
+        let d=0,n=0; for(let y=Math.round(s.top)+1;y<=Math.round(s.bot)-1;y++){ n++; if(colDark(x,y)) d++; }
+        if(!n||d/n<0.9){ ok=false; break; }
+        // stems keep going past the staff, unbroken (a bar number above is separated by a gap)
+        let up=0; for(let y=Math.round(s.top)-3; y>=0 && up<s.sp; y--){ if(colDark(x,y)) up++; else break; }
+        let dn=0; for(let y=Math.round(s.bot)+3; y<H && dn<s.sp; y++){ if(colDark(x,y)) dn++; else break; }
+        if(up>=Math.max(2,0.2*s.sp)||dn>=Math.max(2,0.2*s.sp)){ ok=false; break; }
+        // a note head or a beam stuck to either end means a stem, not a bar line
+        const q=s.sp;
+        const ends=[s.top,s.bot];
+        // only a thick beam glued to an end counts against it; nearby notes, slurs and hairpins do not
+        if(ends.some(yE=>blob(x+1,x+0.7*q,yE-0.3*q,yE+0.3*q)>0.6&&blob(x-0.7*q,x-1,yE-0.3*q,yE+0.3*q)>0.6)){ ok=false; break; }
+      }
+      hit.push(ok?1:0);
+    }
+    const xs=[]; let run=-1;
+    hit.forEach((h,i)=>{ const x=i+xs0; if(h&&run<0) run=x; if((!h||i===hit.length-1)&&run>=0){ const end=h?x:x-1; if(end-run<=0.9*sp) xs.push((run+end)/2); run=-1; } });
+    const merged0=[]; for(const x of xs){ if(merged0.length&&x-merged0[merged0.length-1]<1.2*sp) merged0[merged0.length-1]=Math.max(merged0[merged0.length-1],x); else merged0.push(x); }
+    // no real bar is narrower than about three staff spaces: drop strokes right after a bar line
+    const merged=[]; for(const x of merged0){ if(merged.length&&x-merged[merged.length-1]<3*sp) continue; merged.push(x); }
+    // in the first system, full-height strokes right after the clef are the time signature digits, not bar lines
+    const hdr=pc===strip.pieces[0] ? Math.max(...pc.staves.map(s=>s.xl))+12*sp : -1;
+    for(const x of merged){ if(x<hdr){ strip.headerEnd=pc.x+x+0.8*sp; continue; } out.push(pc.x+x); }
+  }
+  return out;
+}
+function defaultStart(strip, bars){
+  const p0=strip.pieces[0]; if(!p0) return 0;
+  const sp=strip.sp, base=p0.staves.length?Math.max(...p0.staves.map(s=>s.xl)):0;
+  if(strip.headerEnd!==null && strip.headerEnd!==undefined && (!bars.length||strip.headerEnd<bars[0]-sp)) return Math.round(strip.headerEnd);
+  let x=p0.x+base+9*sp; if(bars.length&&x>bars[0]-2*sp) x=Math.max(p0.x+base+3*sp, bars[0]-6*sp);
+  return Math.round(x);
+}
+
+/* ---------- workspace ---------- */
+async function openPdf(file){
+  $("pdfw").hidden=false; pwBusy("Abrindo o PDF…");
+  try{
+    const pages=await loadPdfPages(file,(i,n)=>pwBusy(`Lendo a página ${i} de ${n}…`));
+    const key=file.name+"|"+file.size;
+    let proj=null; try{ proj=JSON.parse(localStorage.getItem("pr.pdfproj:"+key)||"null"); }catch(e){}
+    PW={ file, key, name:file.name.replace(/\.pdf$/i,""), pages, step:1,
+      crops: proj&&proj.crops ? proj.crops : pages.flatMap((P,i)=>detectSystems(P,i)),
+      markers: proj&&proj.markers ? proj.markers : null,
+      firstNum: proj?proj.firstNum:1, beats: proj?proj.beats:4, beatType: proj?proj.beatType:4, bpm: proj?proj.bpm:72, spans: proj&&proj.spans?proj.spans:{}, strip:null, sel:null, mz:240 };
+    pwBusy(null); $("pwLab").textContent="PDF · "+PW.name.toUpperCase(); pwShow(1);
+    if(!PW.crops.length) toast("Não encontrei pautas automaticamente. Desenhe os recortes à mão.");
+  }catch(e){ console.error(e); pwBusy(null); $("pdfw").hidden=true; toast("Não consegui abrir esse PDF. Se ele for uma imagem escaneada protegida, salve uma cópia sem senha e tente de novo."); }
+}
+function pwSave(){ if(!PW) return; try{ localStorage.setItem("pr.pdfproj:"+PW.key, JSON.stringify({crops:PW.crops, markers:PW.markers, firstNum:PW.firstNum, beats:PW.beats, beatType:PW.beatType, bpm:PW.bpm, spans:PW.spans})); }catch(e){} }
+function sortCrops(){ PW.crops.sort((a,b)=>a.p-b.p||a.y-b.y||a.x-b.x); }
+function pwShow(step){
+  PW.step=step; $("pwSteps").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.s===step)));
+  $("pwBack").hidden=step===1; $("pwNext").textContent=step===3?"Concluir":"Avançar";
+  const body=$("pwBody"), tools=$("pwTools"); body.textContent=""; tools.textContent="";
+  if(step===1) pwStep1(body,tools); else if(step===2) pwStep2(body,tools); else pwStep3(body,tools);
+}
+function tbtn(label,title,fn,cls){ const b=document.createElement("button"); b.className="btn sm"+(cls?" "+cls:""); b.textContent=label; if(title) b.title=title; b.onclick=fn; return b; }
+function thint(t){ const p=document.createElement("span"); p.className="pw-hint"; p.textContent=t; return p; }
+
+/* step 1: crop systems on the pages */
+function pwStep1(body,tools){
+  tools.append(
+    tbtn("Detectar sistemas de novo","Refaz os recortes automáticos de todas as páginas",()=>{ PW.crops=PW.pages.flatMap((P,i)=>detectSystems(P,i)); PW.markers=null; pwShow(1); }),
+    tbtn("Igualar corte esquerdo","Aplica o corte esquerdo do 2º sistema a todos os seguintes, para tirar a clave e a armadura repetidas",()=>{ sortCrops(); const ref=PW.crops[1]; if(!ref) return; for(const c of PW.crops.slice(2)){ const r=c.x+c.w; c.x=ref.x; c.w=r-c.x; } PW.markers=null; renderBoxes(); }),
+    thint("Arraste um recorte para mover e puxe as bordas para ajustar. Desenhe na página para criar um novo. Os números mostram a ordem da emenda.")
+  );
+  const wrap=document.createElement("div"); wrap.className="pw-pages";
+  PW.pages.forEach((P,i)=>{
+    const pg=document.createElement("div"); pg.className="pw-page"; pg.dataset.p=i; pg.style.aspectRatio=P.w+"/"+P.h;
+    const img=document.createElement("canvas"); img.width=P.w; img.height=P.h; img.getContext("2d").drawImage(P.c,0,0); pg.append(img);
+    const lab=document.createElement("span"); lab.className="pw-pnum"; lab.textContent="PÁGINA "+(i+1); pg.append(lab);
+    wrap.append(pg);
+    pg.addEventListener("pointerdown",e=>pwPageDown(e,pg,i));
+  });
+  body.append(wrap); renderBoxes();
+}
+function renderBoxes(){
+  sortCrops();
+  document.querySelectorAll(".pw-page").forEach(pg=>{
+    pg.querySelectorAll(".pw-box").forEach(b=>b.remove());
+    const i=+pg.dataset.p, P=PW.pages[i];
+    PW.crops.forEach((c,k)=>{ if(c.p!==i) return;
+      const b=document.createElement("div"); b.className="pw-box"+(PW.sel===c?" on":""); b._crop=c;
+      Object.assign(b.style,{left:(c.x/P.w*100)+"%", top:(c.y/P.h*100)+"%", width:(c.w/P.w*100)+"%", height:(c.h/P.h*100)+"%"});
+      b.innerHTML=`<span class="pw-n">${k+1}</span><button class="pw-del" title="Apagar recorte">✕</button><i class="hd l"></i><i class="hd r"></i><i class="hd t"></i><i class="hd b"></i>`;
+      pg.append(b);
+    });
+  });
+}
+function pwPageDown(e,pg,pi){
+  if(e.button!==0) return;
+  const P=PW.pages[pi], r=pg.getBoundingClientRect(), toP=ev=>({x:(ev.clientX-r.left)/r.width*P.w, y:(ev.clientY-r.top)/r.height*P.h});
+  const p0=toP(e), box=e.target.closest(".pw-box");
+  if(e.target.closest(".pw-del")){ PW.crops=PW.crops.filter(c=>c!==box._crop); PW.markers=null; renderBoxes(); return; }
+  let mode, c, c0;
+  if(box){ c=box._crop; c0={...c}; const h=e.target.closest(".hd"); mode=h?h.classList[1]:"move"; PW.sel=c; }
+  else { c={p:pi,x:p0.x,y:p0.y,w:1,h:1}; PW.crops.push(c); c0={...c}; mode="draw"; PW.sel=c; }
+  pg.setPointerCapture(e.pointerId); e.preventDefault();
+  const move=ev=>{ const p=toP(ev), dx=p.x-p0.x, dy=p.y-p0.y;
+    if(mode==="move"){ c.x=Math.max(0,Math.min(P.w-c.w,c0.x+dx)); c.y=Math.max(0,Math.min(P.h-c.h,c0.y+dy)); }
+    else if(mode==="l"){ const nx=Math.max(0,Math.min(c0.x+c0.w-20,c0.x+dx)); c.w=c0.x+c0.w-nx; c.x=nx; }
+    else if(mode==="r"){ c.w=Math.max(20,Math.min(P.w-c0.x,c0.w+dx)); }
+    else if(mode==="t"){ const ny=Math.max(0,Math.min(c0.y+c0.h-20,c0.y+dy)); c.h=c0.y+c0.h-ny; c.y=ny; }
+    else if(mode==="b"){ c.h=Math.max(20,Math.min(P.h-c0.y,c0.h+dy)); }
+    else { c.x=Math.min(p0.x,p.x); c.y=Math.min(p0.y,p.y); c.w=Math.abs(dx); c.h=Math.abs(dy); }
+    for(const k of ["x","y","w","h"]) c[k]=Math.round(c[k]);
+    renderBoxes(); };
+  const up=()=>{ pg.removeEventListener("pointermove",move); pg.removeEventListener("pointerup",up); if(mode==="draw"&&(c.w<30||c.h<30)) PW.crops=PW.crops.filter(o=>o!==c); PW.markers=null; renderBoxes(); };
+  pg.addEventListener("pointermove",move); pg.addEventListener("pointerup",up);
+}
+
+/* step 2: the stitched strip and its bar lines */
+function pwStep2(body,tools){
+  if(!PW.crops.length){ toast("Faça pelo menos um recorte."); pwShow(1); return; }
+  sortCrops(); PW.strip=stitch(PW.pages, PW.crops);
+  if(!PW.markers){ const bars=detectBarlines(PW.strip); PW.markers=[defaultStart(PW.strip,bars), ...bars.filter(x=>x>defaultStart(PW.strip,bars)+PW.strip.sp)]; }
+  const zoom=document.createElement("input"); zoom.type="range"; zoom.min=140; zoom.max=480; zoom.value=PW.mz; zoom.id="pwZoom"; zoom.oninput=()=>{ PW.mz=+zoom.value; drawStrip(); };
+  const zl=document.createElement("label"); zl.className="pw-zoom"; zl.textContent="Tamanho"; zl.append(zoom);
+  tools.append(
+    tbtn("Detectar barras de novo","Refaz a detecção automática das barras de compasso",()=>{ const bars=detectBarlines(PW.strip); const st=PW.markers[0]; PW.markers=[st,...bars.filter(x=>x>st+PW.strip.sp)]; drawStrip(); }),
+    tbtn("Apagar barras","Mantém só o início do compasso 1",()=>{ PW.markers=[PW.markers[0]]; drawStrip(); }),
+    zl,
+    thint("Clique para adicionar uma barra, arraste para mover, duplo clique remove. A linha âmbar marca onde começa o compasso 1.")
+  );
+  const sc=document.createElement("div"); sc.className="pw-strip"; sc.id="pwStrip";
+  const inner=document.createElement("div"); inner.className="pw-stripin"; inner.id="pwStripIn"; sc.append(inner); body.append(sc);
+  const cnt=document.createElement("p"); cnt.className="pw-count"; cnt.id="pwCount"; body.append(cnt);
+  drawStrip();
+  let drag=null;
+  inner.addEventListener("pointerdown",e=>{
+    if(e.button!==0) return; const ds=PW.mz/PW.strip.H, r=inner.getBoundingClientRect(), x=(e.clientX-r.left)/ds;
+    const lb=e.target.closest(".pw-bar");
+    if(lb){ const i=+lb.dataset.i; const inp=document.createElement("input"); inp.type="number"; inp.min=1; inp.max=200; inp.value=PW.spans[i]||1; inp.className="pw-span"; inp.style.left=lb.style.left; inp.title="Quantos compassos este compasso vale";
+      let fin=false; const done=()=>{ if(fin) return; fin=true; const v=Math.max(1,Math.min(200,+inp.value||1)); if(v>1) PW.spans[i]=v; else delete PW.spans[i]; drawStrip(); };
+      inp.onkeydown=ev=>{ ev.stopPropagation(); if(ev.key==="Enter") done(); if(ev.key==="Escape"){ fin=true; drawStrip(); } }; inp.onblur=done; inp.addEventListener("pointerdown",ev=>ev.stopPropagation());
+      lb.replaceWith(inp); inp.focus(); inp.select(); e.preventDefault(); return; }
+    const mk=e.target.closest(".pw-mk");
+    if(mk){ drag={i:+mk.dataset.i, moved:false}; inner.setPointerCapture(e.pointerId); return; }
+    drag={add:x, moved:false}; inner.setPointerCapture(e.pointerId);
+  });
+  inner.addEventListener("pointermove",e=>{ if(!drag||drag.add!==undefined) return; const ds=PW.mz/PW.strip.H, r=inner.getBoundingClientRect(), x=(e.clientX-r.left)/ds, i=drag.i;
+    const lo=i>0?PW.markers[i-1]+4:0, hi=i<PW.markers.length-1?PW.markers[i+1]-4:PW.strip.W; PW.markers[i]=Math.round(Math.max(lo,Math.min(hi,x))); drag.moved=true; drawStrip(); });
+  const shiftSpans=(from,d)=>{ const ns={}; for(const [k,v] of Object.entries(PW.spans)){ const kk=+k; ns[kk>=from?kk+d:kk]=v; } PW.spans=ns; };
+  inner.addEventListener("pointerup",()=>{ if(drag&&drag.add!==undefined){ const x=Math.round(drag.add); if(x>PW.markers[0]+4 && !PW.markers.some(m=>Math.abs(m-x)<3)){ PW.markers.push(x); PW.markers.sort((a,b)=>a-b); shiftSpans(PW.markers.indexOf(x),1); drawStrip(); } } drag=null; });
+  inner.addEventListener("dblclick",e=>{ const mk=e.target.closest(".pw-mk"); if(!mk) return; const i=+mk.dataset.i; if(i===0) return; PW.markers.splice(i,1); delete PW.spans[i-1]; shiftSpans(i,-1); drawStrip(); });
+}
+function drawStrip(){
+  const inner=$("pwStripIn"); if(!inner||!PW.strip) return;
+  const S2=PW.strip, ds=PW.mz/S2.H; inner.textContent="";
+  inner.style.width=(S2.W*ds)+"px"; inner.style.height=(S2.H*ds)+"px";
+  for(const pc of S2.pieces){ const c=document.createElement("canvas"); c.width=pc.w; c.height=S2.H; c.getContext("2d").drawImage(pc.gray,0,0); Object.assign(c.style,{left:(pc.x*ds)+"px",width:(pc.w*ds)+"px",height:(S2.H*ds)+"px"}); c.className="pw-piece"; inner.append(c); }
+  PW.markers.forEach((x,i)=>{ const m=document.createElement("div"); m.className="pw-mk"+(i===0?" start":""); m.dataset.i=i; m.style.left=(x*ds)+"px";
+    m.innerHTML=`<span>${i===0?"INÍCIO":"|"}</span>`; inner.append(m); });
+  // bar labels between markers: number, and how many bars a multi-bar rest is worth
+  let num=PW.firstNum;
+  for(let i=0;i<PW.markers.length-1;i++){
+    const sp=Math.max(1,+(PW.spans[i]||1)), a=PW.markers[i]*ds, b=PW.markers[i+1]*ds;
+    const l=document.createElement("button"); l.className="pw-bar"+(sp>1?" multi":""); l.dataset.i=i; l.style.left=(a+4)+"px"; l.style.maxWidth=Math.max(24,b-a-8)+"px";
+    l.textContent= sp>1 ? `${num}–${num+sp-1}` : String(num); l.title="Clique para dizer quantos compassos esta pausa vale"; inner.append(l);
+    num+=sp;
+  }
+  const n=Math.max(0,PW.markers.length-1), bars=num-PW.firstNum;
+  $("pwCount").textContent=`${n} compasso${n===1?"":"s"} desenhado${n===1?"":"s"}, ${bars} compasso${bars===1?"":"s"} contando as pausas longas. Clique no número de uma pausa de vários compassos (o "4", o "8") para dizer quantos compassos ela vale.`;
+}
+
+/* step 3: numbering, time signature and starting tempo */
+function pwStep3(body,tools){
+  const n=Math.max(0,PW.markers.length-1)+Object.values(PW.spans).reduce((a,v)=>a+Math.max(0,v-1),0);
+  tools.append(thint("O andamento real vem da sincronia com o áudio: depois de concluir, use a linha do tempo ou Marcar tocando."));
+  const f=document.createElement("div"); f.className="pw-form";
+  f.innerHTML=`<label>Número do primeiro compasso<input type="number" id="pwFirst" class="num" min="0" value="${PW.firstNum}"></label>
+    <label>Fórmula de compasso<span class="row"><input type="number" id="pwBeats" class="num" min="1" max="32" value="${PW.beats}" style="width:70px"> / <select id="pwBeatType">${[2,4,8,16].map(v=>`<option ${v===PW.beatType?"selected":""}>${v}</option>`).join("")}</select></span></label>
+    <label>Andamento inicial (BPM)<input type="number" id="pwBpm" class="num" min="20" max="300" value="${PW.bpm}"></label>
+    <p class="pw-sum" id="pwSum"></p>`;
+  body.append(f);
+  const upd=()=>{ PW.firstNum=+$("pwFirst").value||0; PW.beats=Math.max(1,+$("pwBeats").value||4); PW.beatType=+$("pwBeatType").value||4; PW.bpm=Math.max(20,+$("pwBpm").value||72);
+    const sec=n*PW.beats*(4/PW.beatType)*60/PW.bpm; $("pwSum").textContent=`${n} compassos, do ${PW.firstNum} ao ${PW.firstNum+n-1}. Duração pelo andamento inicial: ${fmt(sec,false)}.`; };
+  f.addEventListener("input",upd); upd();
+}
+$("pwSteps").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b||!PW) return; const s=+b.dataset.s; if(s>=2&&!PW.crops.length) return; if(s===3&&!PW.markers) pwShow(2); pwShow(s); });
+$("pwNext").onclick=()=>{ if(!PW) return; if(PW.step<3){ pwShow(PW.step+1); return; } if(PW.markers.length<2){ toast("Marque pelo menos uma barra de compasso."); pwShow(2); return; } pwSave(); applyPdf(); };
+$("pwBack").onclick=()=>{ if(PW&&PW.step>1) pwShow(PW.step-1); };
+$("pwCancel").onclick=()=>{ $("pdfw").hidden=true; if(!pdfMode) PW=null; };
+
+/* ---------- playing a PDF score ---------- */
+async function applyPdf(){
+  if(!PW.strip){ sortCrops(); PW.strip=stitch(PW.pages,PW.crops); }
+  stop(); pdfMode=true;
+  PDF={ name:PW.name, key:PW.key, strip:PW.strip, markers:[...PW.markers], firstNum:PW.firstNum, beats:PW.beats, beatType:PW.beatType, bpm:PW.bpm, spans:{...PW.spans} };
+  scoreName=PDF.name; loaded=true; xmlDoc=null;
+  $("scoreName").textContent=PDF.name; $("ovTitleN").textContent=PDF.name; $("scoreLab").textContent="Partitura em PDF";
+  $("instList").textContent="";
+  $("pdfw").hidden=true;
+  try{ localStorage.setItem("pr.last", JSON.stringify({kind:"pdf", key:PW.key})); }catch(e){}
+  idbPut("pdf:"+PW.key, PW.file);
+  if(editMode) setEdit(false);
+  pos=0; await render();
+  toast("Partitura em PDF pronta. Alinhe com o áudio pela linha do tempo ou com Marcar tocando.");
+}
+function inkColor(){ return getComputedStyle(document.documentElement).getPropertyValue("--ink").trim()||"#EDEFF2"; }
+function tint(mask,color,w,h){ const c=document.createElement("canvas"); c.width=Math.max(1,Math.round(w)); c.height=Math.max(1,Math.round(h)); const g=c.getContext("2d"); g.imageSmoothingQuality="high"; g.drawImage(mask,0,0,c.width,c.height); g.globalCompositeOperation="source-in"; g.fillStyle=color; g.fillRect(0,0,c.width,c.height); return c; }
+function pdfDisplayScale(){ const st=PDF.strip, sysH=Math.max(10,st.staffBot-st.staffTop); return (S.zoom/100)*Math.min(2.2,120/sysH)*(stage.clientWidth<600?0.75:1); }
+function renderPdf(){
+  $("osmd").hidden=true; const ph=$("pdfhost"); ph.hidden=false; host=ph;
+  S.mode="horizontal"; stage.classList.add("horizontal"); stage.classList.remove("vertical");
+  const st=PDF.strip, ds=pdfDisplayScale(), ink=inkColor(); PDF.ds=ds;
+  ph.textContent=""; ph.style.width=(st.W*ds)+"px"; ph.style.height=(st.H*ds)+"px";
+  for(const pc of st.pieces){ const c=tint(pc.mask,ink,pc.w*Math.min(2,ds*1.5),st.H*Math.min(2,ds*1.5)); Object.assign(c.style,{position:"absolute",left:(pc.x*ds)+"px",top:"0",width:(pc.w*ds)+"px",height:(st.H*ds)+"px"}); ph.append(c); }
+  // bars -> measures and timeline
+  const mk=PDF.markers, n=mk.length-1, barW=PDF.beats/PDF.beatType, spb=barW*240/PDF.bpm;
+  measures=[]; tl=[]; notes=[]; xmlTempos=[];
+  const pad=1.2*st.sp*ds, y=st.staffTop*ds-pad;
+  const pieceAt=x=>st.pieces.find(p=>x>=p.x&&x<p.x+p.w)||st.pieces[st.pieces.length-1];
+  let bi=0;
+  for(let i=0;i<n;i++){
+    const pc=pieceAt(mk[i]+1), h=(pc.staffBot-pc.staffTop)*ds+2*pad, span=Math.max(1,+(PDF.spans&&PDF.spans[i]||1)), owner=bi;
+    tl.push({t:bi*spb, x:mk[i]*ds+3, y, h, mi:bi, notes:[]});
+    for(let k=0;k<span;k++,bi++) measures.push({num:PDF.firstNum+bi, ts:bi*barW, dur:barW, t0:bi*spb, t1:(bi+1)*spb, bpm:PDF.bpm, sig:PDF.beats+"/"+PDF.beatType, n:PDF.beats, d:PDF.beatType, hasNotes:span===1, gx0:mk[i]*ds, gx1:mk[i+1]*ds, owner, span});
+  }
+  const lp=pieceAt(mk[n]-1); tl.push({t:bi*spb, x:mk[n]*ds, y, h:(lp.staffBot-lp.staffTop)*ds+2*pad, mi:Math.max(0,bi-1), notes:[], end:true});
+  total=bi*spb;
+  beats=[]; for(const m of measures){ const step=1/m.d; for(let k=0;k<m.n;k++) beats.push({t:m.t0+k*step*240/m.bpm, down:k===0}); }
+  // sticky clef/key/time: the strip before bar 1
+  stickyX=null; const box=$("sticky"); box.textContent=""; box.hidden=true;
+  const p0=st.pieces[0];
+  if(p0 && mk[0]>p0.x+st.sp){
+    const x0=0, x1=(mk[0]-p0.x)*ds-2, y0=Math.max(0,(st.staffTop-1.5*st.sp)*ds), y1=Math.min(st.H*ds,(p0.staffBot+1.5*st.sp)*ds), padS=Math.round(2*st.sp*ds);
+    stickyX={x0,x1,y0,y1,pad:padS};
+    const c=document.createElement("canvas"), k=Math.min(2,ds*1.5); c.width=Math.round((mk[0]-p0.x)*k); c.height=Math.round((y1-y0)/ds*k);
+    const g=c.getContext("2d"); g.drawImage(tint(p0.mask,ink,p0.w*k,st.H*k), 0, -y0/ds*k);
+    c.style.width=(x1-x0)+"px"; c.style.height=(y1-y0)+"px"; c.style.display="block";
+    const inner=document.createElement("div"); inner.className="sticky-in"; inner.style.width=(x1-x0)+"px"; inner.style.height=(y1-y0)+"px"; inner.append(c);
+    box.style.paddingTop=box.style.paddingBottom=padS+"px"; box.append(inner); box.style.top=(host.offsetTop+y0-padS)+"px";
+  }
+  $("tEnd").textContent=fmt(total,false);
+  loadSync(); updateSeekRange(); tlFit(); drawTicks();
+  S.loopA=Math.min(Math.max(1,S.loopA),measures.length); S.loopB=Math.min(Math.max(S.loopA,S.loopB),measures.length);
+  $("loopA").max=$("loopB").max=measures.length; syncLoopUI();
+  $("loading").hidden=true; lastIdx=-1; clearHl(); seekTo(pos,true);
+  return Promise.resolve();
+}
+async function rasterPdf(scale){
+  const st=PDF.strip, ds=PDF.ds, ink=inkColor(), tiles=[];
+  for(const pc of st.pieces){ const w=pc.w*ds*scale, h=st.H*ds*scale; const c=tint(pc.mask,ink,w,h); tiles.push({x:Math.round(pc.x*ds*scale), w:c.width, ink:c, amber:c}); }
+  return { tiles, w:Math.round(st.W*ds*scale), h:Math.round(st.H*ds*scale), scale, ox:0, oy:0 };
+}
+function leavePdf(){ if(!pdfMode) return; pdfMode=false; PDF=null; $("pdfhost").hidden=true; $("pdfhost").textContent=""; $("osmd").hidden=false; host=$("osmd"); }
+async function restorePdf(key){
+  const file=await idbGet("pdf:"+key); if(!file) return false;
+  try{
+    $("loading").hidden=false;
+    const pages=await loadPdfPages(file);
+    let proj=null; try{ proj=JSON.parse(localStorage.getItem("pr.pdfproj:"+key)||"null"); }catch(e){}
+    if(!proj||!proj.markers) return false;
+    PW={file,key,name:file.name.replace(/\.pdf$/i,""),pages,step:3,crops:proj.crops,markers:proj.markers,firstNum:proj.firstNum,beats:proj.beats,beatType:proj.beatType,bpm:proj.bpm,spans:proj.spans||{},strip:null,sel:null,mz:240};
+    await applyPdf(); return true;
+  }catch(e){ console.error(e); return false; }
+}
+
 /* ---------- boot ---------- */
 applyBg(); applyOv(); syncChips(); $("rateOut").textContent=S.rate+"%"; showTl(S.tl);
 let saved=null, savedName="";
 try{ saved=localStorage.getItem("pr.score"); savedName=localStorage.getItem("pr.scoreName")||""; }catch(e){}
-const boot = saved ? loadScore(saved, savedName, false).then(ok=> ok || loadScore($("sampleScore").textContent.trim(),"Tema de exemplo",true))
-                   : loadScore($("sampleScore").textContent.trim(),"Tema de exemplo",true);
-boot.then(()=>{ if(saved) $("scoreLab").textContent="Última partitura aberta"; lastW=stage.clientWidth; requestAnimationFrame(loop); });
+(async()=>{
+  let last=null; try{ last=JSON.parse(localStorage.getItem("pr.last")||"null"); }catch(e){}
+  let ok=false;
+  if(last&&last.kind==="pdf") ok=await restorePdf(last.key);
+  if(!ok){
+    if(saved) ok=await loadScore(saved, savedName, false);
+    if(!ok){ saved=null; await loadScore($("sampleScore").textContent.trim(),"Tema de exemplo",true); }
+    if(saved) $("scoreLab").textContent="Última partitura aberta";
+  }
+  lastW=stage.clientWidth; requestAnimationFrame(loop);
+})();
 })();
 </script>
 

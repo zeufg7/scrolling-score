@@ -11,6 +11,7 @@ Everything runs in your browser. Your files are never uploaded anywhere.
 ## Features
 
 - **Reads MusicXML** (`.musicxml`, `.xml` and `.mxl`) exported from Cubase, Dorico, Sibelius or MuseScore.
+- **Reads PDF scores too.** The app finds each system on the pages and proposes crops you can move, resize, delete or draw by hand. The crops are stitched into one continuous strip, aligned on the staff and scaled to a common staff size. Bar lines are detected automatically (stems, time signatures and bar numbers are told apart from real bar lines) and you can add, move or remove them, and say how many bars a multi-bar rest is worth. The PDF and your crops are kept in the browser and reopen with the page.
 - **Two scroll modes:** a continuous horizontal strip with a fixed playhead, or full systems scrolling vertically.
 - **Notes light up** while they sound.
 - **Sync to audio or video** (mp3, wav, m4a, mp4, mov, webm) through sync points. Between two points the score follows the recording's real tempo, including rubato and fermatas.
@@ -28,7 +29,7 @@ Everything runs in your browser. Your files are never uploaded anywhere.
 
 ## How to use
 
-1. Open the page and click **Abrir partitura** (Open score), or drag the file onto the window.
+1. Open the page and click **Abrir partitura** (Open score), or drag the file onto the window. For a PDF, follow the three steps: crop the systems, check the bar lines, set the time signature and starting tempo. To adjust a PDF later, click **Editar**.
 2. Click **Áudio / vídeo** and load the recording.
 3. In the **timeline**, drag the score lane until the INÍCIO (start) marker lands where the music begins. If the tempo moves, pin more bars by dragging their bar lines, or press `T` on each downbeat while the music plays.
 4. For a multicam video, click **+ Câmeras** in the timeline (or Ajustes › Câmeras) and add up to four videos. They sync themselves to the main audio.
@@ -83,6 +84,7 @@ Video export uses the browser's built-in recorder. Chrome and Edge on desktop pr
 
 - Score engraving: [OpenSheetMusicDisplay](https://github.com/opensheetmusicdisplay/opensheetmusicdisplay) (BSD-3-Clause)
 - `.mxl` reading: [JSZip](https://github.com/Stuk/jszip) (MIT)
+- PDF rendering: [PDF.js](https://github.com/mozilla/pdf.js) (Apache-2.0)
 - Fonts: Big Shoulders Display, IBM Plex Sans and IBM Plex Mono, via Google Fonts
 
 Made by **Eliseu F. Guedes** · @o_zeufg
