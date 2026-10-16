@@ -16,7 +16,7 @@ Everything runs in your browser. Your files are never uploaded anywhere.
 - **Sync to audio or video** (mp3, wav, m4a, mp4, mov, webm) through sync points. Between two points the score follows the recording's real tempo, including rubato and fermatas.
 - **Timeline** showing video frames, the audio waveform and the score's bars on one time axis. Drag the score lane to line up the start, and drag any bar line to pin that bar to the right moment.
 - **Tap to sync:** press play and hit `T` on each downbeat.
-- **Counts rest bars:** during multi-bar rests the reading line steps through each bar of the rest (with a "PAUSA 2/4" counter) and only moves on when the music comes back. Multi-bar rests from Dorico and Cubase are timed correctly.
+- **Counts rest bars:** during multi-bar rests the reading line steps through each bar of the rest and only moves on when the music comes back. Multi-bar rests from Dorico and Cubase are timed correctly.
 - **Sticky clef, key and time signature** stay pinned at the left edge while the score scrolls, in the app and in exported videos.
 - **Video export** as Horizontal 16:9 (YouTube), Vertical 9:16 (Shorts and TikTok) or Reels, with Instagram's safe areas kept clear. A live preview lets you set the score size and position, the band height and the video size before recording.
 - **Score editing:** click any note, rest, dynamic, hairpin, slur or text to select it, then change pitch, duration, articulations, stems and dynamics, turn notes into rests, add hairpins, edit texts and tempo marks. Move dynamics, texts, hairpins and slurs above or below the staff, or drag them anywhere (saved as standard MusicXML offsets). Undo/redo, and save the edited MusicXML.

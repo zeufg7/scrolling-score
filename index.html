@@ -277,7 +277,6 @@ body.rec .stage{cursor:none}
       <div class="loopzone" id="loopzone" hidden></div>
       <div class="bar" id="bar"></div>
       <div class="selbox" id="selBox" hidden></div>
-      <div class="restbadge" id="restBadge" hidden></div>
     </div>
     <div class="ebar" id="ebar" hidden>
       <div class="ebar-top">
@@ -982,13 +981,7 @@ function frame(force){
   $("tNow").textContent=fmt(t);
   if(!seeking) $("seek").value=Math.round(t*100);
 }
-function placeBadge(p){
-  const b=$("restBadge"); if(!p.rest||p.rest.N<2){ b.hidden=true; return; }
-  b.hidden=false; b.textContent=`PAUSA ${p.rest.k}/${p.rest.N}`;
-  b.style.transform=`translate3d(${host.offsetLeft+p.x}px,${host.offsetTop+p.y-24}px,0)`;
-}
 function placeBar(p){
-  placeBadge(p);
   const h=p.h*S.lineH/100, y=host.offsetTop+p.y+(p.h-h)/2+S.lineY, x=host.offsetLeft+p.x+S.lineX-S.lineW/2;
   bar.style.width=S.lineW+"px"; bar.style.height=h+"px";
   bar.style.transform=`translate3d(${x}px,${y}px,0)`;
@@ -1560,7 +1553,6 @@ function drawExportFrame(g, L, R, t, opts){
       g.fillStyle=stageC; g.fillRect(bx,by,pad+w+10,bh);
       drawTiles(g,R,"ink",sx0,sy0,w,sh,bx+pad,offY+R.oy+sy0);
       const fs=g.createLinearGradient(bx+pad+w+10,0,bx+pad+w+46,0); fs.addColorStop(0,stageC); fs.addColorStop(1,hexA(stageC,0)); g.fillStyle=fs; g.fillRect(bx+pad+w+10,by,36,bh); } }
-    if(p.rest&&p.rest.N>1){ const lbl=`PAUSA ${p.rest.k}/${p.rest.N}`; g.font="500 "+Math.round(14*Math.max(1,s*0.8))+"px 'IBM Plex Mono', monospace"; const tw=g.measureText(lbl).width+16, th=Math.round(22*Math.max(1,s*0.8)); const lx=offX+p.x*s-6, ly=offY+sysTop-th-10; g.fillStyle="#E0A458"; g.fillRect(lx,ly,tw,th); g.fillStyle="#1A1206"; g.textBaseline="middle"; g.fillText(lbl,lx+8,ly+th/2+1); g.textBaseline="alphabetic"; }
     const bxp=offX+p.x*s, lh=sysH*S.lineH/100, lw=Math.max(2,S.lineW*s*0.8);
     g.shadowColor="rgba(224,164,88,.6)"; g.shadowBlur=18; g.fillStyle="#E0A458"; g.fillRect(bxp+S.lineX*s-lw/2, offY+sysTop+(sysH-lh)/2+S.lineY*s, lw, lh); g.shadowBlur=0;
     const fr=g.createLinearGradient(bx+bw-90,0,bx+bw,0); fr.addColorStop(0,hexA(stageC,0)); fr.addColorStop(1,stageC); g.fillStyle=fr; g.fillRect(bx+bw-90,by,90,bh);
