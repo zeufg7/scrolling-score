@@ -62,7 +62,7 @@ button,select,input{font:inherit;color:inherit}
 #osmd svg text{fill:var(--ink2)}
 #osmd svg .hl path[fill]:not([fill="none"]),#osmd svg .hl ellipse,#osmd svg .hl polygon,#osmd svg .hl rect[fill]:not([fill="none"]){fill:var(--amber)}
 #osmd svg .hl path[stroke]:not([stroke="none"]),#osmd svg .hl line{stroke:var(--amber)}
-.bar{position:absolute;left:0;top:0;width:3px;border-radius:2px;background:var(--amber);box-shadow:0 0 18px 2px rgba(224,164,88,.45);pointer-events:none;z-index:3}
+.bar{position:absolute;left:0;top:0;width:3px;border-radius:2px;min-width:1px;background:var(--amber);box-shadow:0 0 18px 2px rgba(224,164,88,.45);pointer-events:none;z-index:3}
 .loopzone{position:absolute;top:0;background:rgba(224,164,88,.10);border-left:1px dashed var(--amber);border-right:1px dashed var(--amber);pointer-events:none;z-index:1}
 .playline{position:absolute;top:0;bottom:0;width:1px;background:linear-gradient(to bottom,transparent,rgba(224,164,88,.35) 15%,rgba(224,164,88,.35) 85%,transparent);pointer-events:none;z-index:2}
 .stage.vertical .playline{display:none}
@@ -303,6 +303,20 @@ body.rec .stage{cursor:none}
       <div class="field"><label for="zoom">Tamanho <output id="zoomOut">100%</output></label><input type="range" id="zoom" min="50" max="220" step="5" value="100"></div>
       <div class="field"><label for="playhead">Posição da agulha <output id="phOut">33%</output></label><input type="range" id="playhead" min="10" max="70" step="1" value="33"></div>
       <label class="check"><input type="checkbox" id="chkHl" checked> Acender as notas que estão soando</label>
+    </section>
+
+    <section class="sec">
+      <h3>Linha de leitura</h3>
+      <div class="field"><label for="lineH">Altura <output id="lineHOut">100%</output></label><input type="range" id="lineH" min="20" max="250" step="5" value="100"></div>
+      <div class="field"><label for="lineW">Espessura <output id="lineWOut">3 px</output></label><input type="range" id="lineW" min="1" max="24" step="1" value="3"></div>
+      <div class="field"><label for="lineY">Posição vertical <output id="lineYOut">0 px</output></label><input type="range" id="lineY" min="-200" max="200" step="1" value="0"></div>
+      <div class="field"><label for="lineX">Posição horizontal <output id="lineXOut">0 px</output></label><input type="range" id="lineX" min="-120" max="120" step="1" value="0"></div>
+      <div class="row"><button class="btn" id="lineReset">Restaurar linha</button></div>
+      <p class="hint">Ajusta a linha âmbar que acompanha a música. Vale também para o vídeo exportado.</p>
+    </section>
+
+    <section class="sec">
+      <h3>Textos na tela</h3>
       <label class="check"><input type="checkbox" id="chkOv" checked> Mostrar textos na tela (@, compasso, título)</label>
       <div class="field"><label for="ovSub">Texto acima do título</label><input type="text" id="ovSub" class="num" style="width:100%" value="ANÁLISE DE PARTITURA" maxlength="40"></div>
     </section>
@@ -417,7 +431,7 @@ const audio=$("audio");
 
 /* ---------- settings ---------- */
 const S = { mode:"horizontal", bg:"zeufg", zoom:100, playhead:33, hl:true, ov:true, ovSub:"ANÁLISE DE PARTITURA",
-  offset:0, tl:true, tapEvery:1, vid:"br", vidSize:28, volA:100, volS:60, volC:50, synth:true, click:false, rate:100, loop:false, loopA:1, loopB:4 };
+  offset:0, tl:true, lineH:100, lineW:3, lineY:0, lineX:0, tapEvery:1, vid:"br", vidSize:28, volA:100, volS:60, volC:50, synth:true, click:false, rate:100, loop:false, loopA:1, loopB:4 };
 try { Object.assign(S, JSON.parse(localStorage.getItem("pr.settings")||"{}")); } catch(e){}
 const save = () => { try { localStorage.setItem("pr.settings", JSON.stringify(S)); } catch(e){} };
 
@@ -802,15 +816,14 @@ function frame(force){
     const tx = (dragX!==null ? dragX : ph - p.x);
     track.style.transform=`translate3d(${tx}px,0,0)`;
     playline.style.left=ph+"px";
-    bar.style.transform=`translate3d(${p.x}px,${p.y}px,0)`;
+    placeBar(p);
   } else {
     track.style.transform="none";
     const target=Math.max(0,p.y-H*0.22);
     if(force) scrollY=target; else scrollY+=(target-scrollY)*0.12;
     if(playing || force) stage.scrollTop=scrollY;
-    bar.style.transform=`translate3d(${p.x}px,${p.y}px,0)`;
+    placeBar(p);
   }
-  bar.style.height=p.h+"px";
   updateHl(t);
   // readouts
   const mi=measureAt(t);
@@ -827,6 +840,11 @@ function frame(force){
   }
   $("tNow").textContent=fmt(t);
   if(!seeking) $("seek").value=Math.round(t*100);
+}
+function placeBar(p){
+  const h=p.h*S.lineH/100, y=host.offsetTop+p.y+(p.h-h)/2+S.lineY, x=host.offsetLeft+p.x+S.lineX-S.lineW/2;
+  bar.style.width=S.lineW+"px"; bar.style.height=h+"px";
+  bar.style.transform=`translate3d(${x}px,${y}px,0)`;
 }
 function loop(){ frame(false); tlTick(); requestAnimationFrame(loop); }
 
@@ -945,7 +963,7 @@ function syncLoopUI(){
   const z=$("loopzone");
   if(S.loop && a && b){
     const ia=idxAt(a.t0), ib=idxAt(b.t1-0.001); const ea=tl[ia], eb=tl[Math.min(tl.length-1,ib+1)];
-    if(ea && eb && ea.y===eb.y && S.mode==="horizontal"){ z.hidden=false; z.style.left=(ea.x-8)+"px"; z.style.width=Math.max(10,eb.x-ea.x)+"px"; z.style.top=ea.y+"px"; z.style.height=ea.h+"px"; } else z.hidden=true;
+    if(ea && eb && ea.y===eb.y && S.mode==="horizontal"){ z.hidden=false; z.style.left=(host.offsetLeft+ea.x-8)+"px"; z.style.width=Math.max(10,eb.x-ea.x)+"px"; z.style.top=(host.offsetTop+ea.y)+"px"; z.style.height=ea.h+"px"; } else z.hidden=true;
   } else z.hidden=true;
   drawTicks();
 }
@@ -972,6 +990,11 @@ seg("segBg","bg",applyBg);
 function rng(id,key,out,fmtf,after){ const el=$(id); el.value=S[key]; const o=$(out); o.textContent=fmtf(S[key]); el.addEventListener("input",()=>{ S[key]=+el.value; o.textContent=fmtf(S[key]); after&&after(); save(); }); }
 let rz; rng("zoom","zoom","zoomOut",v=>v+"%",()=>{ clearTimeout(rz); rz=setTimeout(render,180); });
 rng("playhead","playhead","phOut",v=>v+"%",()=>frame(true));
+rng("lineH","lineH","lineHOut",v=>v+"%",()=>frame(true));
+rng("lineW","lineW","lineWOut",v=>v+" px",()=>frame(true));
+rng("lineY","lineY","lineYOut",v=>v+" px",()=>frame(true));
+rng("lineX","lineX","lineXOut",v=>v+" px",()=>frame(true));
+$("lineReset").onclick=()=>{ Object.assign(S,{lineH:100,lineW:3,lineY:0,lineX:0}); for(const [k,o,u] of [["lineH","lineHOut","%"],["lineW","lineWOut"," px"],["lineY","lineYOut"," px"],["lineX","lineXOut"," px"]]){ $(k).value=S[k]; $(o).textContent=S[k]+u; } save(); frame(true); };
 rng("volA","volA","volAOut",v=>v+"%",applyVolumes);
 rng("volS","volS","volSOut",v=>v+"%",applyVolumes);
 rng("volC","volC","volCOut",v=>v+"%",applyVolumes);
@@ -1371,7 +1394,8 @@ function drawExportFrame(g, L, R, t, opts){
   }
   // playhead glow
   const bxp=offX+p.x*s;
-  g.shadowColor="rgba(224,164,88,.6)"; g.shadowBlur=18; g.fillStyle="#E0A458"; g.fillRect(bxp-2, offY+sysTop, 4, sysH); g.shadowBlur=0;
+  const lh=sysH*S.lineH/100, lw=Math.max(2,S.lineW*s*0.8);
+  g.shadowColor="rgba(224,164,88,.6)"; g.shadowBlur=18; g.fillStyle="#E0A458"; g.fillRect(bxp+S.lineX*s-lw/2, offY+sysTop+(sysH-lh)/2+S.lineY*s, lw, lh); g.shadowBlur=0;
   // edge fades
   const fl=g.createLinearGradient(bx,0,bx+90,0); fl.addColorStop(0,stageC); fl.addColorStop(1,hexA(stageC,0)); g.fillStyle=fl; g.fillRect(bx,by,90,bh);
   const fr=g.createLinearGradient(bx+bw-90,0,bx+bw,0); fr.addColorStop(0,hexA(stageC,0)); fr.addColorStop(1,stageC); g.fillStyle=fr; g.fillRect(bx+bw-90,by,90,bh);
