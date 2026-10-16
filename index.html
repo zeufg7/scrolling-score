@@ -183,7 +183,7 @@ body.rec .tline{display:none}
 .xp-main{display:flex;gap:16px;min-height:0;flex:1}
 .xp-left{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px}
 .xp-prev{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#000;border-radius:6px;overflow:hidden;padding:8px}
-.xp-prev canvas{display:block;max-width:100%;max-height:min(62vh,100%);width:auto;height:auto;box-shadow:0 0 0 1px var(--line)}
+.xp-prev canvas{touch-action:none;display:block;max-width:100%;max-height:min(62vh,100%);width:auto;height:auto;box-shadow:0 0 0 1px var(--line)}
 .xp-trans{display:flex;align-items:center;gap:10px}
 .xp-side{width:320px;flex:none;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding-right:4px;max-height:72vh}
 .xp-side.locked{opacity:.45;pointer-events:none}
@@ -223,6 +223,13 @@ body.rec .tline{display:none}
 .stage.editing.horizontal .track{padding-top:150px}
 .stage.editing.vertical .track{padding-top:130px}
 .stage.editing .ov{display:none}
+.camlist{display:flex;flex-direction:column;gap:8px}
+.camlist:empty{display:none}
+.camrow{display:flex;flex-direction:column;gap:6px;border:1px solid var(--line2);border-radius:6px;padding:8px}
+.camsw{width:10px;height:28px;border-radius:2px;flex:none}
+.camname{flex:1;min-width:0;width:auto}
+.camst{font-family:var(--mono);font-size:11px;color:var(--fg2);white-space:nowrap}
+.btn.sm{padding:5px 9px;font-size:12px}
 .toast{position:fixed;left:50%;bottom:calc(120px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--card2);border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:6px;padding:10px 14px;font-size:13px;z-index:40;max-width:calc(100% - 32px);box-shadow:0 8px 30px rgba(0,0,0,.4)}
 
 /* recording mode: everything but the stage disappears */
@@ -308,6 +315,7 @@ body.rec .stage{cursor:none}
       <span class="spacer"></span>
       <button class="mini" id="tlOut" title="Afastar (Ctrl + roda)">−</button>
       <button class="mini" id="tlIn" title="Aproximar (Ctrl + roda)">+</button>
+      <button class="mini wide" id="tlCams" title="Adicionar até 4 câmeras">+ Câmeras</button>
       <button class="mini wide" id="tlAll">Ver tudo</button>
       <button class="chip on" id="tlFollow" title="A linha do tempo acompanha a agulha"><span class="dot"></span>Seguir</button>
     </div>
@@ -412,6 +420,16 @@ body.rec .stage{cursor:none}
     </section>
 
     <section class="sec">
+      <h3>Câmeras</h3>
+      <div class="field"><span class="lbl">Gravação multicâmera <output id="camCount">nenhuma</output></span>
+        <p class="hint">Adicione até 4 vídeos da mesma performance. Cada câmera é encaixada no áudio principal comparando o som. Ajuste fino arrastando a faixa da câmera na linha do tempo. A disposição na tela é feita na prévia de exportação.</p>
+        <div id="camList" class="camlist"></div>
+        <button class="btn" id="btnCams">Adicionar câmeras</button>
+        <input type="file" id="fileCams" accept="video/*,.mp4,.mov,.webm,.mkv,.m4v" multiple hidden>
+      </div>
+    </section>
+
+    <section class="sec">
       <h3>Loop de estudo</h3>
       <div class="row">
         <div class="field" style="flex:1"><label for="loopA">Do compasso</label><input type="number" class="num" id="loopA" min="1" value="1" style="width:100%"></div>
@@ -473,10 +491,18 @@ body.rec .stage{cursor:none}
         <div class="field"><span class="lbl">Trecho</span>
           <div class="seg" id="segRange"><button data-v="all" aria-pressed="true">Música inteira</button><button data-v="loop" aria-pressed="false">Só o loop</button></div>
         </div>
+        <div id="xLayoutBox" hidden>
+          <h3 class="xh">Câmeras</h3>
+          <label class="check"><input type="checkbox" id="xLayoutOn"> Montar o vídeo com as câmeras</label>
+          <div id="xLayoutCtl">
+            <div class="seg" id="segPreset"><button data-v="grid" aria-pressed="true">Grade</button><button data-v="row" aria-pressed="false">Lado a lado</button><button data-v="main" aria-pressed="false">Principal</button></div>
+            <p class="hint">Arraste qualquer caixa na prévia para mover. Puxe o quadrado âmbar no canto para redimensionar. As bordas grudam nas laterais, no centro e nas outras caixas.</p>
+          </div>
+        </div>
         <h3 class="xh">Partitura</h3>
         <div class="field"><label for="xSize">Tamanho <output id="xSizeOut">70%</output></label><input type="range" id="xSize" min="25" max="200" step="5" value="70"></div>
-        <div class="field"><label for="xScoreY">Posição vertical <output id="xScoreYOut">0 px</output></label><input type="range" id="xScoreY" min="-600" max="600" step="10" value="0"></div>
-        <div class="field"><label for="xBand">Altura da faixa <output id="xBandOut">100%</output></label><input type="range" id="xBand" min="40" max="220" step="5" value="100"></div>
+        <div class="field" id="xScoreYField"><label for="xScoreY">Posição vertical <output id="xScoreYOut">0 px</output></label><input type="range" id="xScoreY" min="-600" max="600" step="10" value="0"></div>
+        <div class="field" id="xBandField"><label for="xBand">Altura da faixa <output id="xBandOut">100%</output></label><input type="range" id="xBand" min="40" max="220" step="5" value="100"></div>
         <div id="xVideoBox">
           <h3 class="xh">Vídeo</h3>
           <label class="check"><input type="checkbox" id="xVideo" checked> Incluir o vídeo carregado</label>
@@ -996,7 +1022,7 @@ function placeBar(p){
   bar.style.width=S.lineW+"px"; bar.style.height=h+"px";
   bar.style.transform=`translate3d(${x}px,${y}px,0)`;
 }
-function loop(){ frame(false); tlTick(); requestAnimationFrame(loop); }
+function loop(){ frame(false); syncCams(); tlTick(); requestAnimationFrame(loop); }
 
 function schedule(t){
   if(!ctx) return;
@@ -1231,13 +1257,15 @@ document.addEventListener("visibilitychange",()=>{ if(document.hidden && playing
 const tlc=$("tlc"), tlx=tlc.getContext("2d");
 const TL={pps:10, view:-1, follow:true, userT:0, drag:null, hover:null, dirty:true, w:0, h:0};
 let peaks=null, peakRate=100, thumbs=[], thumbStep=1, thumbAspect=16/9, thumbJob=0;
-const Y={ ruler:[0,18], thumbs:[20,62], wave:[62,96], score:[102,146] };
+let Y={ ruler:[0,18], thumbs:[20,62], wave:[62,96], cams:[100,100], score:[102,146] };
+const CAMH=30;
+function updateY(){ const n=(typeof cams!=="undefined")?cams.length:0, c0=100, c1=c0+n*CAMH; Y={ ruler:[0,18], thumbs:[20,62], wave:[62,96], cams:[c0,c1], score:[c1+2,c1+46] }; tlc.style.height=(148+n*CAMH)+"px"; sizeTL(); TL.dirty=true; }
 const C={ bg:"#0D1015", card:"#161B23", card2:"#1F2631", line:"#3A4352", line2:"#232A35", fg:"#EDEFF2", fg2:"#B8C0CA", mute:"#9AA3AE", amber:"#E0A458" };
 let hatch=null;
 (function(){ const c=document.createElement("canvas"); c.width=c.height=8; const g=c.getContext("2d"); g.strokeStyle="rgba(154,163,174,.22)"; g.lineWidth=1; g.beginPath(); g.moveTo(0,8); g.lineTo(8,0); g.stroke(); hatch=tlx.createPattern(c,"repeat"); })();
 
 function mediaDur(){ return audioReady && isFinite(audio.duration) ? audio.duration : 0; }
-function tlRange(){ const a=Math.min(0, s2m(0)), b=Math.max(mediaDur(), s2m(total||0)); return [a-1, b+1]; }
+function tlRange(){ let a=Math.min(0, s2m(0)), b=Math.max(mediaDur(), s2m(total||0)); for(const c of (typeof cams!=="undefined"?cams:[])){ if(c.useMaster) continue; a=Math.min(a,-c.offset); b=Math.max(b,(c.dur||0)-c.offset); } return [a-1, b+1]; }
 function tlFit(){ sizeTL(); const [a,b]=tlRange(); TL.pps=Math.max(0.5,(TL.w-8)/Math.max(1,b-a)); TL.view=a; TL.dirty=true; }
 const X = mt => (mt-TL.view)*TL.pps;
 const MT = x => TL.view + x/TL.pps;
@@ -1291,6 +1319,20 @@ function drawTL(){
   } else {
     g.fillStyle=C.mute; g.font="12px 'IBM Plex Sans', sans-serif"; g.fillText("Carregue um áudio ou vídeo para alinhar a partitura com ele.", 12, (Y.thumbs[0]+Y.wave[1])/2);
   }
+  // camera lanes
+  cams.forEach((c,i)=>{
+    const y=Y.cams[0]+i*CAMH, h=CAMH-4;
+    g.fillStyle=C.bg; g.fillRect(0,y,W,h);
+    const a=X(c.useMaster?0:-c.offset), b=X((c.dur||0)-(c.useMaster?0:c.offset));
+    if(b>0&&a<W){
+      g.fillStyle=C.card2; g.fillRect(a,y,b-a,h); g.fillStyle=c.color; g.fillRect(a,y,3,h);
+      if(c.env){ const e=c.env.e100; let mx=0; for(let k=0;k<e.length;k+=7) if(e[k]>mx) mx=e[k]; mx=mx||1;
+        g.fillStyle=hexA(c.color,.55); const mid=y+h/2;
+        for(let x=Math.max(0,Math.floor(a)); x<Math.min(W,b); x++){ const t0=MT(x)+(c.useMaster?0:c.offset), t1=MT(x+1)+(c.useMaster?0:c.offset); const b0=Math.max(0,Math.floor(t0*100)), b1=Math.min(e.length,Math.max(b0+1,Math.floor(t1*100))); let m=0; for(let k=b0;k<b1;k++) if(e[k]>m) m=e[k]; const hh=Math.max(1,(m/mx)*(h-6)); g.fillRect(x,mid-hh/2,1,hh); } }
+    }
+    g.font="10px 'IBM Plex Mono', monospace"; const lbl=c.name+(c.useMaster?" · principal":c.analyzing?" · analisando":c.synced?" · "+fmtOff(c.offset):"");
+    const tw=g.measureText(lbl).width+10, lx=Math.max(4,Math.min(W-tw-4,a+6)); g.fillStyle="rgba(13,16,21,.8)"; g.fillRect(lx,y+3,tw,14); g.fillStyle=C.fg2; g.fillText(lbl,lx+5,y+10);
+  });
   // score lane
   const sy=Y.score[0], sh=Y.score[1]-Y.score[0];
   g.fillStyle=C.bg; g.fillRect(0,sy,W,sh);
@@ -1358,6 +1400,10 @@ function tlPoint(e){ const r=tlc.getBoundingClientRect(); return {x:e.clientX-r.
 tlc.addEventListener("pointerdown",e=>{
   if(!loaded) return;
   const {x,y}=tlPoint(e); tlc.setPointerCapture(e.pointerId); TL.userT=performance.now();
+  if(y>=Y.cams[0] && y<Y.cams[1]){
+    const ci=Math.floor((y-Y.cams[0])/CAMH), c=cams[ci];
+    if(c && !c.useMaster){ TL.drag={type:"cam", c, x0:x, off0:c.offset}; return; }
+  }
   if(y>=Y.score[0]-4){
     const mi=hitBoundary(x);
     if(mi!==null) TL.drag={type:"pin", mi, moved:false};
@@ -1373,11 +1419,13 @@ tlc.addEventListener("pointermove",e=>{
     TL.userT=performance.now();
     if(d.type==="seek"){ seekTo(m2s(MT(x))); }
     else if(d.type==="pin"){ let mt=MT(x); const ph=X(mediaNow()); if(Math.abs(x-ph)<8) mt=mediaNow(); setPin(d.mi, mt); d.moved=true; if(!playing) frame(true); }
+    else if(d.type==="cam"){ d.c.offset=Math.round((d.off0-(x-d.x0)/TL.pps)*1000)/1000; d.c.synced=true; TL.dirty=true; if(!playing) syncCams(); }
     else if(d.type==="shift"){ S.offset=Math.round((d.off0+(x-d.x0)/TL.pps)*1000)/1000; $("offset").value=S.offset; $("offOut").textContent=S.offset.toFixed(3)+" s"; TL.dirty=true; if(!playing) frame(true); }
     return;
   }
   let hv=null;
-  if(y>=Y.score[0]-4){ const mi=hitBoundary(x); if(mi!==null) hv={type:"pin",mi}; tlc.style.cursor = mi!==null ? "ew-resize" : "grab"; }
+  if(y>=Y.cams[0] && y<Y.cams[1]){ tlc.style.cursor = cams[Math.floor((y-Y.cams[0])/CAMH)] ? "grab" : "default"; }
+  else if(y>=Y.score[0]-4){ const mi=hitBoundary(x); if(mi!==null) hv={type:"pin",mi}; tlc.style.cursor = mi!==null ? "ew-resize" : "grab"; }
   else tlc.style.cursor="pointer";
   if(JSON.stringify(hv)!==JSON.stringify(TL.hover)){ TL.hover=hv; TL.dirty=true; }
 });
@@ -1385,6 +1433,7 @@ function endDrag(){
   const d=TL.drag; TL.drag=null; if(!d) return;
   if(d.type==="pin" && d.moved){ saveSync(); renderSync(); if(playing) seekTo(clockNow()); toast(`Compasso ${measures[d.mi].num} preso em ${fmt(s2m(measures[d.mi].t0))}.`); }
   if(d.type==="shift"){ save(); renderSync(); updateSeekRange(); if(playing) seekTo(clockNow()); }
+  if(d.type==="cam"){ renderCams(); }
 }
 tlc.addEventListener("pointerup",endDrag); tlc.addEventListener("pointercancel",endDrag);
 tlc.addEventListener("pointerleave",()=>{ if(TL.hover){ TL.hover=null; TL.dirty=true; } });
@@ -1410,7 +1459,7 @@ new ResizeObserver(()=>sizeTL()).observe(tlc);
 /* media analysis for the timeline: frame thumbnails and waveform */
 let peaksLoading=false;
 function loadTimelineMedia(file, url){
-  peaks=null; thumbs=[]; TL.dirty=true;
+  masterEnv=null; peaks=null; thumbs=[]; TL.dirty=true;
   if(!S.tl && isVideo) showTl(true);
   makePeaks(file);
   if(isVideo) makeThumbs(url);
@@ -1424,6 +1473,7 @@ async function makePeaks(file){
     const oc=new OAC(1,8000,8000);
     const ab=await oc.decodeAudioData(buf);
     const ch=ab.getChannelData(0), per=Math.max(1,Math.round(ab.sampleRate/peakRate));
+    try{ masterEnv=analyzeChannel(ch); setTimeout(()=>{ for(const c of cams) if(!c.useMaster && c.env && !c.synced) syncCam(c); },0); }catch(e){}
     const n=Math.ceil(ch.length/per), pk=new Float32Array(n); let mx=0;
     for(let i=0;i<n;i++){ let m=0; const e=Math.min(ch.length,(i+1)*per); for(let k=i*per;k<e;k++){ const v=ch[k]<0?-ch[k]:ch[k]; if(v>m) m=v; } pk[i]=m; if(m>mx) mx=m; }
     if(mx>0) for(let i=0;i<n;i++) pk[i]=Math.sqrt(pk[i]/mx);
@@ -1450,6 +1500,136 @@ async function makeThumbs(url){
   }
   v.removeAttribute("src"); v.load(); TL.dirty=true;
 }
+
+/* ---------- multicam: up to 4 cameras synced to the main media ---------- */
+const MAXCAM=4, CAMCOL=["#E0A458","#7FB3D5","#9CCB8C","#D58FA6"];
+let cams=[], masterEnv=null;
+function camEl(c){ return c.useMaster ? audio : c.el; }
+
+/* audio analysis: onset envelopes at 100 Hz and 1 kHz from audio decoded at 8 kHz */
+async function decodeLow(file){
+  if(file.size>1.5e9) throw new Error("arquivo grande demais");
+  const buf=await file.arrayBuffer();
+  const OAC=window.OfflineAudioContext||window.webkitOfflineAudioContext;
+  const ab=await new OAC(1,8000,8000).decodeAudioData(buf);
+  return ab.getChannelData(0);
+}
+function envOf(ch, sr, rate){
+  const per=Math.max(1,Math.round(sr/rate)), n=Math.floor(ch.length/per), e=new Float32Array(n);
+  for(let i=0;i<n;i++){ let s=0; const o=i*per; for(let k=0;k<per;k++){ const v=ch[o+k]; s+=v<0?-v:v; } e[i]=Math.log(1+200*s/per); }
+  const on=new Float32Array(n); for(let i=1;i<n;i++){ const d=e[i]-e[i-1]; on[i]=d>0?d:0; }
+  return {env:e, on};
+}
+function analyzeChannel(ch){ const a=envOf(ch,8000,100), b=envOf(ch,8000,1000); return {e100:a.env, o100:a.on, o1k:b.on, dur:ch.length/8000}; }
+
+function fft(re,im,inv){
+  const n=re.length;
+  for(let i=1,j=0;i<n;i++){ let bit=n>>1; for(;j&bit;bit>>=1) j^=bit; j^=bit; if(i<j){ let t=re[i]; re[i]=re[j]; re[j]=t; t=im[i]; im[i]=im[j]; im[j]=t; } }
+  for(let len=2;len<=n;len<<=1){
+    const ang=2*Math.PI/len*(inv?1:-1), wr=Math.cos(ang), wi=Math.sin(ang), h=len>>1;
+    for(let i=0;i<n;i+=len){ let cr=1,ci=0; for(let j=0;j<h;j++){ const a=i+j, b=a+h; const vr=re[b]*cr-im[b]*ci, vi=re[b]*ci+im[b]*cr; re[b]=re[a]-vr; im[b]=im[a]-vi; re[a]+=vr; im[a]+=vi; const nr=cr*wr-ci*wi; ci=cr*wi+ci*wr; cr=nr; } }
+  }
+  if(inv) for(let i=0;i<n;i++){ re[i]/=n; im[i]/=n; }
+}
+/* best k for sum a[t]*b[t+k]; returns {k, score, conf} */
+function xcorr(a,b,maxLag){
+  let n=1; while(n<a.length+b.length) n<<=1;
+  const ar=new Float64Array(n), ai=new Float64Array(n), br=new Float64Array(n), bi=new Float64Array(n);
+  let ma=0,mb=0; for(const v of a) ma+=v; for(const v of b) mb+=v; ma/=a.length||1; mb/=b.length||1;
+  for(let i=0;i<a.length;i++) ar[i]=a[i]-ma; for(let i=0;i<b.length;i++) br[i]=b[i]-mb;
+  fft(ar,ai,false); fft(br,bi,false);
+  for(let i=0;i<n;i++){ const r=ar[i]*br[i]+ai[i]*bi[i], m=ar[i]*bi[i]-ai[i]*br[i]; ar[i]=r; ai[i]=m; }
+  fft(ar,ai,true);
+  let best=-Infinity, bk=0;
+  for(let k=-maxLag;k<=maxLag;k++){ const v=ar[(k+n)%n]; if(v>best){ best=v; bk=k; } }
+  let second=-Infinity; for(let k=-maxLag;k<=maxLag;k++){ if(Math.abs(k-bk)<50) continue; const v=ar[(k+n)%n]; if(v>second) second=v; }
+  return {k:bk, score:best, conf: second>0? best/second : 9};
+}
+function refine(a,b,k0,span){ // a,b at 1 kHz; k in samples
+  let best=-Infinity, bk=k0;
+  for(let k=k0-span;k<=k0+span;k++){ let s=0; const t0=Math.max(0,-k), t1=Math.min(a.length,b.length-k); for(let t=t0;t<t1;t+=2) s+=a[t]*b[t+k]; if(s>best){ best=s; bk=k; } }
+  return bk;
+}
+async function syncCam(c, quiet){
+  if(!masterEnv||!c.env){ if(!quiet) toast("Ainda analisando o áudio. Tente de novo em instantes."); return; }
+  const maxLag=Math.round(Math.max(masterEnv.dur,c.env.dur)*100);
+  const r=xcorr(masterEnv.o100, c.env.o100, maxLag);
+  const k1=refine(masterEnv.o1k, c.env.o1k, r.k*10, 25);
+  c.offset=k1/1000; c.synced=true; c.conf=r.conf;
+  renderCams(); TL.dirty=true;
+  if(!quiet) toast(r.conf<1.25 ? `${c.name}: sincronia incerta (${fmtOff(c.offset)}). Confira e ajuste arrastando a faixa.` : `${c.name} sincronizada (${fmtOff(c.offset)}).`);
+}
+const fmtOff=v=>(v>=0?"+":"−")+Math.abs(v).toFixed(3).replace(".",",")+" s";
+
+async function analyzeCam(c){
+  if(c.analyzing) return; c.analyzing=true; renderCams();
+  try{ c.env=analyzeChannel(await decodeLow(c.file)); }catch(e){ c.env=null; c.err=true; }
+  c.analyzing=false; renderCams(); TL.dirty=true;
+  if(c.env && masterEnv && !c.useMaster && !c.synced) syncCam(c);
+}
+async function addCameraFiles(list){
+  const files=[...list].filter(f=>f.type.startsWith("video")||/\.(mp4|mov|webm|mkv|m4v)$/i.test(f.name));
+  if(!files.length){ toast("Escolha arquivos de vídeo."); return; }
+  for(const f of files){
+    if(cams.length>=MAXCAM){ toast("Máximo de 4 câmeras."); break; }
+    const url=URL.createObjectURL(f), el=document.createElement("video");
+    el.muted=true; el.playsInline=true; el.preload="auto"; el.src=url;
+    const c={id:"c"+Math.random().toString(36).slice(2,8), name:"Câmera "+(cams.length+1), file:f, url, el, offset:0, env:null, useMaster:false, color:CAMCOL[cams.length%4]};
+    cams.push(c);
+    await new Promise(r=>{ el.onloadedmetadata=r; el.onerror=r; setTimeout(r,10000); });
+    c.aspect=el.videoWidth?el.videoWidth/el.videoHeight:16/9; c.dur=el.duration||0;
+  }
+  if(!audioReady && cams.length){ useCamAsMaster(0); }
+  updateY(); renderCams(); TL.dirty=true;
+  for(const c of cams) if(!c.env && !c.analyzing && !c.err) analyzeCam(c);
+  if(!S.tl) showTl(true);
+}
+function useCamAsMaster(i){
+  const c=cams[i]; if(!c) return;
+  for(const o of cams) o.useMaster=false;
+  c.useMaster=true; c.offset=0; c.synced=true;
+  readAudioFile(c.file);
+  renderCams();
+}
+function removeCam(i){ const c=cams[i]; if(!c) return; try{ c.el.pause(); c.el.removeAttribute("src"); c.el.load(); URL.revokeObjectURL(c.url); }catch(e){} cams.splice(i,1); cams.forEach((o,j)=>{ if(/^Câmera \d$/.test(o.name)) o.name="Câmera "+(j+1); o.color=CAMCOL[j%4]; }); updateY(); renderCams(); TL.dirty=true; }
+
+/* keep every camera on the main clock */
+function syncCams(){
+  if(!cams.length) return;
+  const run=audioReady && playing && !waitingAudio && !audio.paused;
+  const mt=mediaNow();
+  for(const c of cams){
+    if(c.useMaster) continue;
+    const el=c.el, tgt=mt+c.offset;
+    if(!el.duration||tgt<0||tgt>el.duration){ if(!el.paused) el.pause(); continue; }
+    if(!el.seeking && Math.abs(el.currentTime-tgt)>(run?0.12:0.03)) el.currentTime=tgt;
+    if(el.playbackRate!==rate()) el.playbackRate=rate();
+    if(run && el.paused) el.play().catch(()=>{});
+    if(!run && !el.paused) el.pause();
+  }
+}
+
+/* panel in Ajustes */
+function renderCams(){
+  const box=$("camList"); if(!box) return; box.textContent="";
+  $("camCount").textContent=cams.length?`${cams.length} de 4`:"nenhuma";
+  cams.forEach((c,i)=>{
+    const r=document.createElement("div"); r.className="camrow";
+    const sw=document.createElement("i"); sw.className="camsw"; sw.style.background=c.color;
+    const nm=document.createElement("input"); nm.type="text"; nm.className="num camname"; nm.value=c.name; nm.id="camName"+i; nm.onchange=()=>{ c.name=nm.value.trim()||c.name; TL.dirty=true; };
+    const st=document.createElement("span"); st.className="camst";
+    st.textContent = c.useMaster ? "áudio principal" : c.analyzing ? "analisando o áudio…" : c.err ? "sem áudio legível" : c.synced ? fmtOff(c.offset)+(c.conf<1.25?" · conferir":"") : "aguardando";
+    const acts=document.createElement("div"); acts.className="row";
+    if(!c.useMaster){ acts.append(btnS("Sincronizar","Encontrar o encaixe pelo áudio",()=>syncCam(c)), btnS("Usar áudio desta","Usar o som desta câmera como áudio principal",()=>useCamAsMaster(i))); }
+    acts.append(btnS("Remover","",()=>removeCam(i)));
+    const top=document.createElement("div"); top.className="row"; top.append(sw,nm,st);
+    r.append(top,acts); box.append(r);
+  });
+}
+function btnS(label,title,fn){ const b=document.createElement("button"); b.className="btn sm"; b.textContent=label; if(title) b.title=title; b.onclick=fn; return b; }
+$("btnCams").onclick=()=>$("fileCams").click();
+$("tlCams").onclick=()=>$("fileCams").click();
+$("fileCams").onchange=e=>{ addCameraFiles(e.target.files); e.target.value=""; };
 
 /* ---------- video export: preview first, then record ---------- */
 const FORMATS={
@@ -1535,6 +1715,7 @@ function drawExportFrame(g, L, R, t, opts){
   const st=getComputedStyle(document.documentElement);
   const stageC=st.getPropertyValue("--stage").trim()||"#0D1015";
   g.fillStyle=S.bg==="chroma"?stageC:"#0D1015"; g.fillRect(0,0,L.W,L.H);
+  if(L.cams){ for(const it of L.cams){ const [x,y,w,h]=it.r; g.fillStyle="#000"; g.fillRect(x,y,w,h); coverDraw(g, camEl(it.c), x,y,w,h); } g.lineWidth=4; g.strokeStyle="#0D1015"; for(const it of L.cams) g.strokeRect(...it.r); }
   if(L.video && opts.video){
     coverDraw(g, audio, ...L.video);
     const [vx,vy,vw,vh]=L.video;
@@ -1568,6 +1749,12 @@ function drawExportFrame(g, L, R, t, opts){
     const fr=g.createLinearGradient(bx+bw-90,0,bx+bw,0); fr.addColorStop(0,hexA(stageC,0)); fr.addColorStop(1,stageC); g.fillStyle=fr; g.fillRect(bx+bw-90,by,90,bh);
     g.restore();
   }
+  if(opts.boxes && L.cams){ // editable boxes, preview only
+    const all=[...L.cams.map(i=>({key:i.key,r:i.r,name:i.c.name,col:i.c.color})),{key:"score",r:L.band,name:"Partitura",col:"#EDEFF2"}];
+    for(const b of all){ const [x,y,w,h]=b.r, on=XP&&XP.selBox===b.key; g.save(); g.setLineDash(on?[]:[10,8]); g.lineWidth=on?5:2; g.strokeStyle=on?"#E0A458":hexA(b.col,.8); g.strokeRect(x+2,y+2,w-4,h-4);
+      g.setLineDash([]); g.font="500 22px 'IBM Plex Mono', monospace"; const tw=g.measureText(b.name.toUpperCase()).width+20; g.fillStyle="rgba(13,16,21,.75)"; g.fillRect(x+10,y+10,tw,34); g.fillStyle=on?"#E0A458":"#EDEFF2"; g.textBaseline="middle"; g.fillText(b.name.toUpperCase(),x+20,y+28); g.textBaseline="alphabetic";
+      if(on){ g.fillStyle="#E0A458"; g.fillRect(x+w-28,y+h-28,24,24); } g.restore(); }
+  }
   if(opts.guides){ // safe areas, preview only
     g.save(); g.setLineDash([14,10]); g.lineWidth=3; g.strokeStyle="rgba(224,164,88,.7)";
     if(L.W<L.H && XP && XP.f.key==="r"){ g.fillStyle="rgba(224,164,88,.10)"; g.fillRect(0,0,L.W,220); g.fillRect(0,L.H-420,L.W,420); g.fillRect(L.W-140,220,140,L.H-640); g.strokeRect(1.5,220,L.W-141.5,L.H-640); }
@@ -1600,8 +1787,29 @@ function pickMime(){
 /* ----- preview window ----- */
 const xpc=$("xpCanvas"), xpg=xpc.getContext("2d");
 function xpParams(){ return S.xp[xFmt]; }
+/* camera layout: boxes in 0..1 frame coordinates, saved per format */
+function presetItems(name,fk,n){
+  const it={}, tall=fk!=="h", reels=fk==="r";
+  const top=reels?0.12:0, bot=reels?0.78:1, H=bot-top;
+  if(name==="row"){
+    if(!tall){ for(let i=0;i<n;i++) it["c"+i]={x:i/n,y:0,w:1/n,h:0.62}; it.score={x:0,y:0.64,w:1,h:0.34}; }
+    else { const ch=H*0.74/n; for(let i=0;i<n;i++) it["c"+i]={x:0,y:top+i*ch,w:1,h:ch}; it.score={x:0,y:top+H*0.76,w:1,h:H*0.22}; }
+  } else if(name==="main"){
+    if(!tall){ it.c0={x:0,y:0,w:n>1?0.7:1,h:0.66}; for(let i=1;i<n;i++) it["c"+i]={x:0.7,y:(i-1)*0.66/(n-1),w:0.3,h:0.66/(n-1)}; it.score={x:0,y:0.68,w:1,h:0.32}; }
+    else { it.c0={x:0,y:top,w:1,h:H*0.42}; for(let i=1;i<n;i++) it["c"+i]={x:(i-1)/(n-1),y:top+H*0.43,w:1/(n-1),h:H*0.2}; it.score={x:0,y:top+H*0.66,w:1,h:H*0.24}; }
+  } else { // grid with the score across the middle
+    const cols=n<=1?1:(n===3&&!tall?3:2), rows=Math.ceil(n/cols);
+    for(let i=0;i<n;i++){ const c=i%cols, r=Math.floor(i/cols); it["c"+i]={x:c/cols,y:top+r*H/rows,w:1/cols,h:H/rows}; }
+    const sh=tall?H*0.2:0.26; it.score={x:0,y:top+(rows>1?H/2:H*0.74)-(rows>1?sh/2:0),w:1,h:rows>1?sh:H*0.26};
+  }
+  return it;
+}
+function layoutOn(){ return typeof cams!=="undefined" && cams.length>0 && S.xl && S.xl[xFmt] && S.xl[xFmt].on; }
+function ensureLayout(){ S.xl=S.xl||{}; let cur=S.xl[xFmt]; if(!cur) cur=S.xl[xFmt]={on:true,preset:"grid",items:{}}; const pre=presetItems(cur.preset||"grid",xFmt,cams.length); for(const k in pre) if(!cur.items[k]) cur.items[k]=pre[k]; return cur; }
 function xpWithVideo(){ return isVideo && audioReady && $("xVideo").checked; }
-function xpLayout(){ XP.f=FORMATS[xFmt]; XP.L=layoutFor(XP.f, xpWithVideo(), xpParams()); if(xpc.width!==XP.f.W||xpc.height!==XP.f.H){ xpc.width=XP.f.W; xpc.height=XP.f.H; } $("xpLab").textContent=(XP.phase==="rec"?"GRAVANDO · ":XP.phase==="done"?"PRONTO · ":"PRÉVIA · ")+XP.f.name; }
+function xpLayout(){ XP.f=FORMATS[xFmt]; XP.L=layoutFor(XP.f, xpWithVideo(), xpParams());
+  if(layoutOn()){ const lay=ensureLayout(), F=XP.f, Rr=k=>{ const r=lay.items[k]; return [r.x*F.W,r.y*F.H,r.w*F.W,r.h*F.H]; };
+    XP.L.video=null; XP.L.band=Rr("score"); XP.L.baseBandH=XP.L.band[3]; XP.L.cams=cams.map((c,i)=>({c,key:"c"+i,r:Rr("c"+i)})); } if(xpc.width!==XP.f.W||xpc.height!==XP.f.H){ xpc.width=XP.f.W; xpc.height=XP.f.H; } $("xpLab").textContent=(XP.phase==="rec"?"GRAVANDO · ":XP.phase==="done"?"PRONTO · ":"PRÉVIA · ")+XP.f.name; }
 function xpScale(){ return Math.min(4, (XP.L.baseBandH*0.86)/XP.sysH) * xpParams().size/100; }
 let rasterT=null;
 function xpRaster(now){
@@ -1613,8 +1821,13 @@ function syncXpControls(){
   const P=xpParams();
   $("fmts").querySelectorAll(".fmt").forEach(f=>f.setAttribute("aria-pressed",String(f.dataset.v===xFmt)));
   for(const [id,k,u] of [["xSize","size","%"],["xScoreY","scoreY"," px"],["xBand","band","%"],["xVSize","vSize","%"],["xVY","vY"," px"]]){ $(id).value=P[k]; $(id+"Out").textContent=P[k]+u; }
-  $("xVideoBox").hidden=!(isVideo&&audioReady);
+  const lo=layoutOn();
+  $("xLayoutBox").hidden=!(typeof cams!=="undefined"&&cams.length);
+  $("xLayoutOn").checked=lo; $("xLayoutCtl").hidden=!lo;
+  if(S.xl&&S.xl[xFmt]) $("segPreset").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===S.xl[xFmt].preset)));
+  $("xVideoBox").hidden=!(isVideo&&audioReady) || lo;
   $("xVideoCtl").hidden=!xpWithVideo();
+  $("xScoreYField").hidden=lo; $("xBandField").hidden=lo;
 }
 async function openExport(){
   if(!loaded){ toast("Abra uma partitura primeiro."); return; }
@@ -1625,6 +1838,7 @@ async function openExport(){
   if(S.mode!=="horizontal"){ S.mode="horizontal"; await render(); }
   await Promise.all([document.fonts.load("900 80px 'Big Shoulders Display'"), document.fonts.load("500 20px 'IBM Plex Mono'")]).catch(()=>{});
   XP.sysH=(Math.max(...tl.map(e=>e.y+e.h))-Math.min(...tl.map(e=>e.y)))||120;
+  if(cams.length){ S.xl=S.xl||{}; if(!S.xl[xFmt]) S.xl[xFmt]={on:true,preset:"grid",items:{}}; }
   syncXpControls(); xpLayout(); await xpRaster(true);
   const [lo,hi]=timeRange(); $("xpSeek").min=Math.floor(lo*100); $("xpSeek").max=Math.ceil(hi*100);
   requestAnimationFrame(xpLoop);
@@ -1633,7 +1847,7 @@ function xpLoop(){
   if(!XP || $("xp").hidden) return;
   if(XP.phase!=="rec"){
     const t=clockNow();
-    drawExportFrame(xpg, XP.L, XP.R, t, {video:xpWithVideo(), text:$("xText").checked, guides:$("xGuides").checked});
+    drawExportFrame(xpg, XP.L, XP.R, t, {video:xpWithVideo(), text:$("xText").checked, guides:$("xGuides").checked, boxes:true});
     if(!xpSeeking) $("xpSeek").value=Math.round(t*100);
     $("xpTime").textContent=fmt(t);
     $("xpPlay").innerHTML = playing ? '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>' : '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>';
@@ -1644,7 +1858,7 @@ let xpSeeking=false;
 $("xpSeek").addEventListener("input",()=>{ xpSeeking=true; seekTo($("xpSeek").value/100); });
 $("xpSeek").addEventListener("change",()=>{ xpSeeking=false; });
 $("xpPlay").onclick=()=>toggle();
-$("fmts").addEventListener("click",e=>{ const b=e.target.closest(".fmt"); if(!b||!XP||XP.phase==="rec") return; xFmt=b.dataset.v; S.xFmt=xFmt; save(); syncXpControls(); xpLayout(); xpRaster(); });
+$("fmts").addEventListener("click",e=>{ const b=e.target.closest(".fmt"); if(!b||!XP||XP.phase==="rec") return; xFmt=b.dataset.v; S.xFmt=xFmt; XP.selBox=null; if(cams.length){ S.xl=S.xl||{}; if(!S.xl[xFmt]) S.xl[xFmt]={on:true,preset:"grid",items:{}}; } save(); syncXpControls(); xpLayout(); xpRaster(); });
 $("segRange").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; xRange=b.dataset.v; $("segRange").querySelectorAll("button").forEach(f=>f.setAttribute("aria-pressed",String(f===b))); if(xRange==="loop" && measures[S.loopA-1]) seekTo(measures[S.loopA-1].t0); });
 for(const [id,k,u,re] of [["xSize","size","%",true],["xScoreY","scoreY"," px",false],["xBand","band","%",false],["xVSize","vSize","%",false],["xVY","vY"," px",false]]){
   $(id).addEventListener("input",()=>{ if(!XP) return; xpParams()[k]=+$(id).value; $(id+"Out").textContent=$(id).value+u; save(); xpLayout(); if(re) xpRaster(); });
@@ -1701,6 +1915,47 @@ async function recordExport(){
     else { console.error(err); $("xpMsg").textContent="Não deu para gerar o vídeo neste navegador. Tente o Chrome ou o Edge no computador."; }
   }finally{ S.loop=XP?XP.prevLoop:S.loop; syncLoopUI(); }
 }
+$("xLayoutOn").addEventListener("change",()=>{ if(!XP) return; S.xl=S.xl||{}; const cur=S.xl[xFmt]||(S.xl[xFmt]={on:true,preset:"grid",items:{}}); cur.on=$("xLayoutOn").checked; save(); syncXpControls(); xpLayout(); xpRaster(); });
+$("segPreset").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b||!XP) return; S.xl=S.xl||{}; S.xl[xFmt]={on:true,preset:b.dataset.v,items:presetItems(b.dataset.v,xFmt,cams.length)}; save(); syncXpControls(); xpLayout(); xpRaster(); });
+function xpPoint(e){ const r=xpc.getBoundingClientRect(); return {x:(e.clientX-r.left)/r.width, y:(e.clientY-r.top)/r.height, rw:r.width, rh:r.height}; }
+function xpHit(p){
+  const lay=S.xl[xFmt]; const keys=["score",...cams.map((c,i)=>"c"+i).reverse()];
+  if(XP.selBox && lay.items[XP.selBox]){ const r=lay.items[XP.selBox], cw=28/XP.f.W, chh=28/XP.f.H; if(p.x>=r.x+r.w-cw-0.01&&p.x<=r.x+r.w+0.005&&p.y>=r.y+r.h-chh-0.01&&p.y<=r.y+r.h+0.005) return {key:XP.selBox,mode:"resize"}; }
+  for(const k of keys){ const r=lay.items[k]; if(r&&p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h) return {key:k,mode:"move"}; }
+  return null;
+}
+function snapVal(v,targets,tol){ let best=v,bd=tol; for(const t of targets){ const d=Math.abs(v-t); if(d<bd){ bd=d; best=t; } } return best; }
+xpc.addEventListener("pointerdown",e=>{
+  if(!XP||XP.phase==="rec"||!layoutOn()) return;
+  const p=xpPoint(e), h=xpHit(p);
+  if(!h){ XP.selBox=null; return; }
+  XP.selBox=h.key; const r=S.xl[xFmt].items[h.key];
+  XP.boxDrag={key:h.key, mode:h.mode, p0:p, r0:{...r}}; xpc.setPointerCapture(e.pointerId); e.preventDefault();
+});
+xpc.addEventListener("pointermove",e=>{
+  if(!XP||!layoutOn()) return;
+  const p=xpPoint(e), d=XP.boxDrag;
+  if(!d){ const h=xpHit(p); xpc.style.cursor=h?(h.mode==="resize"?"nwse-resize":"move"):"default"; return; }
+  const lay=S.xl[xFmt], r=lay.items[d.key], dx=p.x-d.p0.x, dy=p.y-d.p0.y, tol=0.012;
+  const others=Object.entries(lay.items).filter(([k])=>k!==d.key).map(([,o])=>o);
+  const xs=[0,0.5,1,...others.flatMap(o=>[o.x,o.x+o.w])], ys=[0,0.5,1,...others.flatMap(o=>[o.y,o.y+o.h])];
+  if(d.mode==="move"){
+    let nx=d.r0.x+dx, ny=d.r0.y+dy;
+    const sx=snapVal(nx,xs,tol), sx2=snapVal(nx+r.w,xs,tol)-r.w; nx=Math.abs(sx-nx)<=Math.abs(sx2-nx)?sx:sx2;
+    const sy=snapVal(ny,ys,tol), sy2=snapVal(ny+r.h,ys,tol)-r.h; ny=Math.abs(sy-ny)<=Math.abs(sy2-ny)?sy:sy2;
+    const cx=snapVal(nx+r.w/2,[0.5],tol)-r.w/2; if(Math.abs(cx-nx)<tol) nx=cx;
+    const cy=snapVal(ny+r.h/2,[0.5],tol)-r.h/2; if(Math.abs(cy-ny)<tol) ny=cy;
+    r.x=Math.max(-r.w+0.05,Math.min(0.95,nx)); r.y=Math.max(-r.h+0.05,Math.min(0.95,ny));
+  } else {
+    let nw=Math.max(0.06,d.r0.w+dx), nh=Math.max(0.05,d.r0.h+dy);
+    nw=snapVal(r.x+nw,xs,tol)-r.x; nh=snapVal(r.y+nh,ys,tol)-r.y;
+    if(e.shiftKey){ const ar=d.r0.w/d.r0.h; nh=nw/ar*(XP.f.W/XP.f.H)/(XP.f.W/XP.f.H); }
+    r.w=Math.max(0.06,nw); r.h=Math.max(0.05,nh);
+  }
+  xpLayout();
+});
+function endBoxDrag(){ if(!XP||!XP.boxDrag) return; const k=XP.boxDrag.key; XP.boxDrag=null; save(); if(k==="score") xpRaster(); }
+xpc.addEventListener("pointerup",endBoxDrag); xpc.addEventListener("pointercancel",endBoxDrag);
 $("xpRec").onclick=recordExport;
 function closeExport(){
   if(!XP) return;
