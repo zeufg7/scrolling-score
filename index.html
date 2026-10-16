@@ -491,6 +491,11 @@ body.rec .stage{cursor:none}
         <div class="field"><span class="lbl">Trecho</span>
           <div class="seg" id="segRange"><button data-v="all" aria-pressed="true">Música inteira</button><button data-v="loop" aria-pressed="false">Só o loop</button></div>
         </div>
+        <div class="field"><span class="lbl">O que gravar</span>
+          <div class="seg" id="segContent"><button data-v="all" aria-pressed="true">Tudo junto</button><button data-v="cams" aria-pressed="false">Só câmeras</button><button data-v="score" aria-pressed="false">Só partitura</button></div>
+          <div class="seg" id="segScoreBg" hidden><button data-v="chroma" aria-pressed="true">Fundo verde</button><button data-v="black" aria-pressed="false">Fundo preto</button></div>
+          <p class="hint" id="contentHint"></p>
+        </div>
         <div id="xLayoutBox" hidden>
           <h3 class="xh">Câmeras</h3>
           <label class="check"><input type="checkbox" id="xLayoutOn"> Montar o vídeo com as câmeras</label>
@@ -1714,15 +1719,19 @@ function coverDraw(g, v, x, y, w, h){
 function drawExportFrame(g, L, R, t, opts){
   const st=getComputedStyle(document.documentElement);
   const stageC=st.getPropertyValue("--stage").trim()||"#0D1015";
-  g.fillStyle=S.bg==="chroma"?stageC:"#0D1015"; g.fillRect(0,0,L.W,L.H);
-  if(L.cams){ for(const it of L.cams){ const [x,y,w,h]=it.r; g.fillStyle="#000"; g.fillRect(x,y,w,h); coverDraw(g, camEl(it.c), x,y,w,h); } g.lineWidth=4; g.strokeStyle="#0D1015"; for(const it of L.cams) g.strokeRect(...it.r); }
-  if(L.video && opts.video){
+  const content=opts.content||"all";
+  g.fillStyle = content==="score" ? (S.xScoreBg==="black"?"#000000":"#00B140") : (S.bg==="chroma"?stageC:"#0D1015");
+  g.fillRect(0,0,L.W,L.H);
+  if(content==="cams" && !L.cams && isVideo && audioReady){ coverDraw(g, audio, 0,0,L.W,L.H); }
+  if(L.cams && content!=="score"){ for(const it of L.cams){ const [x,y,w,h]=it.r; g.fillStyle="#000"; g.fillRect(x,y,w,h); coverDraw(g, camEl(it.c), x,y,w,h); } g.lineWidth=4; g.strokeStyle="#0D1015"; for(const it of L.cams) g.strokeRect(...it.r); }
+  if(content==="all" && L.video && opts.video){
     coverDraw(g, audio, ...L.video);
     const [vx,vy,vw,vh]=L.video;
     const gr=g.createLinearGradient(0,vy+vh-120,0,vy+vh); gr.addColorStop(0,"rgba(13,16,21,0)"); gr.addColorStop(1,"rgba(13,16,21,1)"); g.fillStyle=gr; g.fillRect(vx,vy+vh-120,vw,120);
     const gt=g.createLinearGradient(0,vy,0,vy+140); gt.addColorStop(0,"rgba(13,16,21,.75)"); gt.addColorStop(1,"rgba(13,16,21,0)"); g.fillStyle=gt; g.fillRect(vx,vy,vw,140);
   }
   const [bx,by,bw,bh]=L.band;
+  if(content!=="cams"){
   g.fillStyle=stageC; g.fillRect(bx,by,bw,bh);
   if(R){
     const p=posAt(t), s=R.scale;
@@ -1749,6 +1758,7 @@ function drawExportFrame(g, L, R, t, opts){
     const fr=g.createLinearGradient(bx+bw-90,0,bx+bw,0); fr.addColorStop(0,hexA(stageC,0)); fr.addColorStop(1,stageC); g.fillStyle=fr; g.fillRect(bx+bw-90,by,90,bh);
     g.restore();
   }
+  }
   if(opts.boxes && L.cams){ // editable boxes, preview only
     const all=[...L.cams.map(i=>({key:i.key,r:i.r,name:i.c.name,col:i.c.color})),{key:"score",r:L.band,name:"Partitura",col:"#EDEFF2"}];
     for(const b of all){ const [x,y,w,h]=b.r, on=XP&&XP.selBox===b.key; g.save(); g.setLineDash(on?[]:[10,8]); g.lineWidth=on?5:2; g.strokeStyle=on?"#E0A458":hexA(b.col,.8); g.strokeRect(x+2,y+2,w-4,h-4);
@@ -1760,7 +1770,7 @@ function drawExportFrame(g, L, R, t, opts){
     if(L.W<L.H && XP && XP.f.key==="r"){ g.fillStyle="rgba(224,164,88,.10)"; g.fillRect(0,0,L.W,220); g.fillRect(0,L.H-420,L.W,420); g.fillRect(L.W-140,220,140,L.H-640); g.strokeRect(1.5,220,L.W-141.5,L.H-640); }
     g.restore();
   }
-  if(!opts.text) return;
+  if(!opts.text || content==="cams") return;
   const mi=measureAt(Math.max(0,t)), mnum=measures[mi]?measures[mi].num:1;
   g.textBaseline="alphabetic";
   g.fillStyle="#EDEFF2"; g.font="500 26px 'IBM Plex Mono', monospace"; spaced(g,"@O_ZEUFG",L.handle[0],L.handle[1],5);
@@ -1821,6 +1831,10 @@ function syncXpControls(){
   const P=xpParams();
   $("fmts").querySelectorAll(".fmt").forEach(f=>f.setAttribute("aria-pressed",String(f.dataset.v===xFmt)));
   for(const [id,k,u] of [["xSize","size","%"],["xScoreY","scoreY"," px"],["xBand","band","%"],["xVSize","vSize","%"],["xVY","vY"," px"]]){ $(id).value=P[k]; $(id+"Out").textContent=P[k]+u; }
+  const ct=S.xContent||"all";
+  $("segContent").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===ct)));
+  $("segScoreBg").hidden=ct!=="score"; $("segScoreBg").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===(S.xScoreBg||"chroma"))));
+  $("contentHint").textContent = ct==="all" ? "Câmeras, partitura e textos num único vídeo." : ct==="cams" ? "Só as câmeras, já sincronizadas, com o áudio (os textos ficam no arquivo da partitura). Grave também \"Só partitura\" com o mesmo formato e trecho: os dois arquivos têm a mesma duração e começam no mesmo instante." : "Só a faixa da partitura, na mesma posição do layout. No CapCut, coloque este vídeo sobre o das câmeras, ambos no início da timeline, e use Recortar › Chroma key no fundo verde.";
   const lo=layoutOn();
   $("xLayoutBox").hidden=!(typeof cams!=="undefined"&&cams.length);
   $("xLayoutOn").checked=lo; $("xLayoutCtl").hidden=!lo;
@@ -1847,7 +1861,7 @@ function xpLoop(){
   if(!XP || $("xp").hidden) return;
   if(XP.phase!=="rec"){
     const t=clockNow();
-    drawExportFrame(xpg, XP.L, XP.R, t, {video:xpWithVideo(), text:$("xText").checked, guides:$("xGuides").checked, boxes:true});
+    drawExportFrame(xpg, XP.L, XP.R, t, {video:xpWithVideo(), text:$("xText").checked, guides:$("xGuides").checked, boxes:true, content:S.xContent||"all"});
     if(!xpSeeking) $("xpSeek").value=Math.round(t*100);
     $("xpTime").textContent=fmt(t);
     $("xpPlay").innerHTML = playing ? '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>' : '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>';
@@ -1871,7 +1885,8 @@ async function recordExport(){
   if(!XP || XP.phase!=="preview") return;
   if(!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream){ toast("Este navegador não grava vídeo. Use o Chrome ou o Edge no computador."); return; }
   stop(); await xpRaster(true);
-  const f=XP.f, L=XP.L, R=XP.R, withVideo=xpWithVideo(), text=$("xText").checked;
+  const f=XP.f, L=XP.L, R=XP.R, withVideo=xpWithVideo(), text=$("xText").checked, content=S.xContent||"all";
+  if(content==="cams" && !L.cams && !(isVideo&&audioReady)){ toast("Carregue as câmeras ou um vídeo para gravar só as câmeras."); return; }
   let tA, tB;
   if(xRange==="loop" && measures[S.loopA-1] && measures[S.loopB-1]){ tA=Math.max(timeRange()[0], measures[S.loopA-1].t0-0.8); tB=measures[S.loopB-1].t1+0.6; }
   else { [tA,tB]=timeRange(); if(!audioReady){ tA=0; tB=total+1.5; } }
@@ -1888,13 +1903,18 @@ async function recordExport(){
     const rec=new MediaRecorder(stream, mime?{mimeType:mime, videoBitsPerSecond:f.W>f.H?10e6:9e6, audioBitsPerSecond:192e3}:{});
     rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
     const done=new Promise(res=>rec.onstop=res);
-    seekTo(tA); drawExportFrame(xpg,L,R,tA,{video:withVideo,text});
-    rec.start(1000); play();
+    // pre-roll: start playing a little earlier and begin recording exactly at tA, so separate exports line up frame for frame
+    seekTo(Math.max(timeRange()[0], tA-0.8)); drawExportFrame(xpg,L,R,clockNow(),{video:withVideo,text,content}); play();
+    $("xpMsg").textContent="Preparando o início exato…";
+    await new Promise(res=>{ let last=null; const w=()=>{ if(XP.cancel){ res(); return; } const t=clockNow(); drawExportFrame(xpg,L,R,t,{video:withVideo,text,content}); if(t>=tA-0.002 && last!==null && t>last){ res(); return; } last=t; requestAnimationFrame(w); }; requestAnimationFrame(w); });
+    tA=Math.max(tA, Math.min(clockNow(), tA+0.02));
+    rec.start(1000);
+    $("xpMsg").textContent="Gravando em tempo real. Não troque de aba nem minimize a janela.";
     await new Promise(res=>{
       const step=()=>{
         if(XP.cancel){ res(); return; }
         const t=clockNow();
-        drawExportFrame(xpg,L,R,t,{video:withVideo,text});
+        drawExportFrame(xpg,L,R,t,{video:withVideo,text,content});
         const pr=Math.min(1,Math.max(0,(t-tA)/(tB-tA)));
         $("xpBar").style.width=(pr*100).toFixed(1)+"%"; $("xpTime").textContent=`${fmt(t-tA,false)} / ${fmt(tB-tA,false)}`;
         if(t>=tB || (!playing && t>tA+0.5) || (audioReady && audio.ended)){ res(); return; }
@@ -1905,7 +1925,7 @@ async function recordExport(){
     stop(); rec.stop(); await done; try{ outNode.disconnect(dest); }catch(e){}
     if(XP.cancel) throw "cancel";
     const type=(mime||"video/webm").split(";")[0], ext=type.includes("mp4")?"mp4":"webm";
-    XP.blob=new Blob(chunks,{type}); XP.name=`${(scoreName||"partitura").replace(/[\\/:*?"<>|]+/g,"")} - ${f.file}.${ext}`;
+    XP.blob=new Blob(chunks,{type}); XP.name=`${(scoreName||"partitura").replace(/[\\/:*?"<>|]+/g,"")} - ${f.file}${content==="cams"?" - cameras":content==="score"?" - partitura":""}.${ext}`;
     XP.phase="done"; xpLayout();
     $("xpBar").style.width="100%"; $("xpMsg").textContent=`Vídeo pronto: ${XP.name} (${(XP.blob.size/1048576).toFixed(1)} MB).`;
     $("xpSave").hidden=false;
@@ -1956,6 +1976,8 @@ xpc.addEventListener("pointermove",e=>{
 });
 function endBoxDrag(){ if(!XP||!XP.boxDrag) return; const k=XP.boxDrag.key; XP.boxDrag=null; save(); if(k==="score") xpRaster(); }
 xpc.addEventListener("pointerup",endBoxDrag); xpc.addEventListener("pointercancel",endBoxDrag);
+$("segContent").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b||!XP||XP.phase==="rec") return; S.xContent=b.dataset.v; if(S.xContent==="score"&&!S.xScoreBg) S.xScoreBg="chroma"; save(); syncXpControls(); });
+$("segScoreBg").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; S.xScoreBg=b.dataset.v; save(); syncXpControls(); });
 $("xpRec").onclick=recordExport;
 function closeExport(){
   if(!XP) return;
