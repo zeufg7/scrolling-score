@@ -12,6 +12,7 @@ Everything runs in your browser. Your files are never uploaded anywhere.
 
 - **Reads MusicXML** (`.musicxml`, `.xml` and `.mxl`) exported from Cubase, Dorico, Sibelius or MuseScore.
 - **Reads PDF scores too.** The app finds each system on the pages and proposes crops you can move, resize, delete or draw by hand. The crops are stitched into one continuous strip, aligned on the staff and scaled to a common staff size. Bar lines are detected automatically (stems, time signatures and bar numbers are told apart from real bar lines) and you can add, move or remove them, and say how many bars a multi-bar rest is worth. The PDF and your crops are kept in the browser and reopen with the page.
+- **Repeats and jumps:** the score is played in performance order, not written order. Repeat signs, 1st/2nd/3rd endings, Segno, To Coda, Coda, Fine, D.C., D.C. al Coda, D.C. al Fine, D.S., D.S. al Coda and D.S. al Fine are read from MusicXML automatically. For PDFs, or to fix a file, open **Saltos** in the timeline, pick a symbol from the palette and click the bar, either in the timeline or on the score. The timeline shows every pass of every bar, so you can pin the 2nd time through a passage to the video like any other bar. The video itself is never cut or moved. For live versions that don't follow the page, type your own order (for example `1-59, 52-58, 60-142`).
 - **Two scroll modes:** a continuous horizontal strip with a fixed playhead, or full systems scrolling vertically.
 - **Notes light up** while they sound.
 - **Sync to audio or video** (mp3, wav, m4a, mp4, mov, webm) through sync points. Between two points the score follows the recording's real tempo, including rubato and fermatas.
@@ -32,9 +33,10 @@ Everything runs in your browser. Your files are never uploaded anywhere.
 1. Open the page and click **Abrir partitura** (Open score), or drag the file onto the window. For a PDF, follow the three steps: crop the systems, check the bar lines, set the time signature and starting tempo. To adjust a PDF later, click **Editar**.
 2. Click **Áudio / vídeo** and load the recording.
 3. In the **timeline**, drag the score lane until the INÍCIO (start) marker lands where the music begins. If the tempo moves, pin more bars by dragging their bar lines, or press `T` on each downbeat while the music plays.
-4. For a multicam video, click **+ Câmeras** in the timeline (or Ajustes › Câmeras) and add up to four videos. They sync themselves to the main audio.
-5. To make a video, click **Exportar** (Export). Pick a format, adjust the framing in the preview, then click **Gravar vídeo** (Record video). Recording happens in real time, so keep the tab open and visible until it finishes.
-6. To fix the score, click **Editar** (Edit), select an item and use the bar that appears at the top. Save with **Salvar MusicXML**.
+4. If the piece has repeats, endings, D.C. or D.S., check the order under **Saltos** in the timeline. Add or remove symbols by choosing one and clicking a bar, or type the order by hand.
+5. For a multicam video, click **+ Câmeras** in the timeline (or Ajustes › Câmeras) and add up to four videos. They sync themselves to the main audio.
+6. To make a video, click **Exportar** (Export). Pick a format, adjust the framing in the preview, then click **Gravar vídeo** (Record video). Recording happens in real time, so keep the tab open and visible until it finishes.
+7. To fix the score, click **Editar** (Edit), select an item and use the bar that appears at the top. Save with **Salvar MusicXML**.
 
 ### Exporting your score as MusicXML
 
@@ -72,7 +74,7 @@ Everything runs in your browser. Your files are never uploaded anywhere.
 | Delete | Turn note into rest / delete mark |
 | Ctrl + Z / Ctrl + Y | Undo / redo |
 | Ctrl + S | Save MusicXML |
-| Esc | Deselect / leave edit mode |
+| Esc | Deselect / leave edit mode / drop the jump symbol in hand |
 
 ## Running it locally
 
