@@ -978,25 +978,133 @@ function measureBoxes(){
   });
   measures.forEach((m,i)=>{ if(m.owner===i){ let n=1; while(measures[i+n]&&measures[i+n].owner===i) n++; m.span=n; } });
   // sticky header: clef, key and time signature of the first bar
-  stickyX=null; const box=$("sticky"); box.textContent=""; box.hidden=true;
+  stickyX=null; HDR=null; const box=$("sticky"); box.textContent=""; box.hidden=true;
   const svg=host.querySelector("svg"), row=gs.MeasureList[0], g=row&&row.find(z=>z);
   if(S.mode!=="horizontal"||!svg||!g) return;
   const ax=g.PositionAndShape.AbsolutePosition.x;
-  const m0=measures[0]; const x0=Math.max(0,(m0.sx!==undefined?m0.sx-so.x:ax*u)-2.4*u), x1=(m0.gx0!==undefined?m0.gx0-so.x:(ax+g.beginInstructionsWidth)*u)+2;
+  const m0=measures[0]; let x0=Math.max(0,(m0.sx!==undefined?m0.sx-so.x:ax*u)-2.4*u);
+  try{ // reach the left edge of the brace and brackets, wherever they are drawn
+    const vb=svg.viewBox&&svg.viewBox.baseVal, k=(vb&&vb.width)?svg.getBoundingClientRect().width/vb.width:1, sxU=((m0.sx!==undefined?m0.sx-so.x:ax*u))/k; let lo=Infinity;
+    for(const el of svg.querySelectorAll("path,rect")){ const b=el.getBBox(); if(b.width>0 && b.x+b.width<=sxU+1 && b.x>sxU-60 && b.height>8) lo=Math.min(lo,b.x); }
+    if(isFinite(lo)) x0=Math.max(0,Math.min(x0,lo*k-3));
+  }catch(e){}
+  const x1=(m0.gx0!==undefined?m0.gx0-so.x:(ax+g.beginInstructionsWidth)*u)+2;
   // keep only the staff band: no tempo marks or texts from the first bar
   const ys=tl.filter(e=>!e.end), y0=Math.max(0,Math.min(...ys.map(e=>e.y))-so.y-1.2*u), y1=Math.max(...ys.map(e=>e.y+e.h))-so.y+1.2*u;
+  const xs=(m0.sx!==undefined?m0.sx-so.x:ax*u)+1.5;
   stickyX={x0,x1,y0,y1};
   const cl=svg.cloneNode(true); cl.removeAttribute("id"); cl.querySelectorAll("[id]").forEach(n=>n.removeAttribute("id"));
   cl.style.position="absolute"; cl.style.left=(-x0)+"px"; cl.style.top=(-y0)+"px";
-  const inner=document.createElement("div"); inner.className="sticky-in"; inner.style.width=(x1-x0)+"px"; inner.style.height=(y1-y0)+"px"; inner.append(cl);
+  const left=document.createElement("div"); left.style.cssText=`position:absolute;left:0;top:0;width:${xs-x0}px;height:${y1-y0}px;overflow:hidden`; left.append(cl);
+  const inner=document.createElement("div"); inner.className="sticky-in"; inner.style.width=(x1-x0)+"px"; inner.style.height=(y1-y0)+"px"; inner.style.position="relative"; inner.append(left);
   const pad=Math.round(2.5*u); box.style.paddingTop=box.style.paddingBottom=pad+"px"; stickyX.pad=pad;
   box.append(inner); box.style.top=(host.offsetTop+so.y+y0-pad)+"px";
+  try{ buildHeaderData(sc, x0, xs, y0, y1); stickyX.xs=xs; if(HDR) updateHeader(0,true); }catch(e){ console.warn(e); HDR=null; }
 }
 function placeSticky(tx){
   const box=$("sticky"); if(!stickyX||S.mode!=="horizontal"){ box.hidden=true; return; }
   const so=svgOffset(); const onScreen=tx+host.offsetLeft+so.x+stickyX.x0;
   box.hidden = onScreen>0;
   box.style.top=(host.offsetTop+so.y+stickyX.y0-(stickyX.pad||0))+"px";
+}
+
+/* ---------- the sticky header follows clef, key and time changes ---------- */
+let HDR=null, hdrCurKey="", hdrImgs=new Map();
+const HG={gClef:"v83",fClef:"v79",cClef:"vad",perc:"v59",sharp:"v18",flat:"v44",common:"v41",cut:"vb6"};
+function hdrGlyph(c){ const f=MFONTS[S.mfont]||MFONTS.maestro; return f.glyphs[c]||MFONTS.maestro.glyphs[c]; }
+function outlineBox(o){ const t=o.split(" "); let i=0, x0=1e9,x1=-1e9,y0=1e9,y1=-1e9; while(i<t.length){ const c=t[i++], n={m:2,l:2,q:4,b:6}[c]; if(!n) break; for(let j=0;j<n;j+=2){ const x=+t[i+j], y=+t[i+j+1]; if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; } i+=n; } return {x0,x1,y0,y1}; }
+function buildHeaderData(sc, x0px, xspx, y0px, y1px){
+  const gs=osmd.GraphicSheet, sh=osmd.Sheet; HDR=null; hdrCurKey=""; hdrImgs=new Map();
+  const row0=gs&&gs.MeasureList[0]; if(!row0) return;
+  const rows=[]; let lineW=1;
+  for(const m of row0){ if(!m) continue; let st=null; try{ st=m.getVFStave(); }catch(e){} if(!st) continue;
+    rows.push({si:sh.Staves.indexOf(m.ParentStaff), top:st.getYForLine(0), sp:st.getSpacingBetweenLines?st.getSpacingBetweenLines():10}); }
+  if(!rows.length) return;
+  try{ const p=host.querySelector("svg .vf-stave path"); if(p) lineW=parseFloat(p.getAttribute("stroke-width"))||1; }catch(e){}
+  // every clef, key and time signature change, staff by staff, with its position in whole notes
+  const ch=new Map(); const add=(si,ts,k,v)=>{ if(!ch.has(si)) ch.set(si,[]); ch.get(si).push({ts,k,v}); };
+  const read=(se,si,ts)=>{ if(!se||!se.Instructions) return; for(const ins of se.Instructions){
+      if(ins.ClefType!==undefined) add(si,ts,"clef",{type:ins.ClefType,line:ins.Line,oct:ins.OctaveOffset||0});
+      else if(ins.Key!==undefined && ins.Mode!==undefined) add(si,ts,"key",ins.Key);
+      else if(ins.Rhythm) add(si,ts,"time",{n:ins.Rhythm.Numerator,d:ins.Rhythm.Denominator,sym:ins.SymbolEnum||0}); } };
+  sh.SourceMeasures.forEach(sm=>{ const t0=sm.AbsoluteTimestamp.RealValue, t1=t0+sm.Duration.RealValue;
+    (sm.FirstInstructionsStaffEntries||[]).forEach((se,si)=>read(se,si,t0));
+    (sm.VerticalSourceStaffEntryContainers||[]).forEach(c=>(c.StaffEntries||[]).forEach((se,si)=>{ if(c.Timestamp.RealValue>0) read(se,si,t0+c.Timestamp.RealValue); }));
+    (sm.LastInstructionsStaffEntries||[]).forEach((se,si)=>read(se,si,t1-1e-9)); });
+  for(const l of ch.values()) l.sort((a,b)=>a.ts-b.ts);
+  HDR={rows, ch, sc, x0:x0px, xs:xspx, y0:y0px, y1:y1px, lineW};
+}
+function hdrState(ts){
+  return HDR.rows.map(r=>{ const s={clef:{type:0,line:2,oct:0},key:0,time:{n:4,d:4,sym:0}}; for(const c of (HDR.ch.get(r.si)||[])){ if(c.ts>ts+1e-6) break; s[c.k]=c.v; } return s; });
+}
+function keyPositions(clef,fifths){ // staff steps above the bottom line, from the treble pattern moved to this clef
+  if(!fifths||clef.type>2) return [];
+  const sharp=fifths>0, n=Math.min(7,Math.abs(fifths)), L=clef.line||(clef.type===0?2:clef.type===1?4:3);
+  if(clef.type===2 && L===4 && sharp) return [2,6,3,7,4,8,5].slice(0,n); // tenor clef sharps
+  const raw = clef.type===0 ? 2*L-4 : clef.type===1 ? 6+2*(L-1) : 2*L;
+  let sh=((raw%7)+7)%7; if(sh>3) sh-=7;
+  return (sharp?[8,5,9,6,3,7,4]:[4,7,3,6,2,5,1]).slice(0,n).map(p=>p+sh);
+}
+function hdrMarkup(state, color){
+  const R=HDR.rows, gsz=(S.glyph||100)/100; let paths="";
+  const P=(c,X,Y,k)=>{ const g=hdrGlyph(c); if(!g) return 0; paths+=`<path fill="${color}" d="${outlineToPath(g.o,X,Y,k)}"/>`; return (g.x_max-g.x_min)*k; };
+  const sp=R[0].sp, k=sp/365.5*gsz;
+  // column widths shared by all staves
+  const clefW=Math.max(...state.map(s=>{ const c=s.clef.type===0?HG.gClef:s.clef.type===1?HG.fClef:s.clef.type===2?HG.cClef:HG.perc; const g=hdrGlyph(c); return g?(g.x_max-g.x_min)*k:0; }));
+  const accW=(()=>{ const g=hdrGlyph(HG.sharp), f=hdrGlyph(HG.flat); return Math.max(g?(g.x_max-g.x_min)*k:0, f?(f.x_max-f.x_min)*k:0)+0.15*sp; })();
+  const nKey=Math.max(0,...state.map(s=>keyPositions(s.clef,s.key).length));
+  const digits=s=>s.time.sym===1?[HG.common]:s.time.sym===2?[HG.cut]:null;
+  const tw=s=>{ const one=str=>[...String(str)].reduce((a,ch)=>{ const g=hdrGlyph("v"+ch); return a+(g?(g.x_max-g.x_min)*k+0.05*sp:0); },0); const d=digits(s); if(d){ const g=hdrGlyph(d[0]); return g?(g.x_max-g.x_min)*k:0; } return Math.max(one(s.time.n),one(s.time.d)); };
+  const timeW=Math.max(...state.map(tw));
+  const xClef=0.6*sp, xKey=xClef+clefW+(nKey?0.7*sp:0), xTime=xKey+nKey*accW+0.8*sp, W=xTime+timeW+1.2*sp;
+  let lines="";
+  R.forEach((r,i)=>{ const s=state[i];
+    for(let l=0;l<5;l++) lines+=`<path fill="none" stroke="${color}" stroke-width="${HDR.lineW}" d="M0 ${r.top+l*r.sp}H${W}"/>`;
+    const bottom=r.top+4*r.sp;
+    // clef
+    const c=s.clef; let code=null, y=null;
+    if(c.type===0){ code=HG.gClef; y=r.top+(5-(c.line||2))*r.sp; }
+    else if(c.type===1){ code=HG.fClef; y=r.top+(5-(c.line||4))*r.sp; }
+    else if(c.type===2){ code=HG.cClef; y=r.top+(5-(c.line||3))*r.sp; }
+    else if(c.type===3){ code=HG.perc; y=r.top+2*r.sp; }
+    if(code){ P(code,xClef,y,k);
+      if(c.oct){ const g=hdrGlyph(code), b=g?outlineBox(g.o):null, e=hdrGlyph("v8"); if(b&&e){ const eb=outlineBox(e.o), kk=k*0.5, cx=xClef+(b.x0+b.x1)/2*k-(eb.x1-eb.x0)/2*kk; const yy=c.oct<0? y-b.y0*k+(eb.y1-eb.y0)*kk+0.1*r.sp : y-b.y1*k-0.1*r.sp; P("v8",cx,yy,kk); } } }
+    // key signature
+    keyPositions(c,s.key).forEach((p,j)=>P(s.key>0?HG.sharp:HG.flat, xKey+j*accW, bottom-p*r.sp/2, k));
+    // time signature
+    const mid=r.top+2*r.sp, d=digits(s), wAll=tw(s);
+    if(d){ const g=hdrGlyph(d[0]); if(g){ const b=outlineBox(g.o); P(d[0], xTime, mid+(b.y0+b.y1)/2*k, k); } }
+    else for(const [str,top] of [[s.time.n,true],[s.time.d,false]]){
+      const chars=[...String(str)]; const w=chars.reduce((a,ch)=>{ const g=hdrGlyph("v"+ch); return a+(g?(g.x_max-g.x_min)*k+0.05*sp:0); },0);
+      let x=xTime+(wAll-w)/2;
+      for(const ch of chars){ const g=hdrGlyph("v"+ch); if(!g) continue; const b=outlineBox(g.o); P("v"+ch, x-g.x_min*k, top? mid+b.y0*k : mid+b.y1*k, k); x+=(g.x_max-g.x_min)*k+0.05*sp; }
+    }
+  });
+  const y0u=HDR.y0/HDR.sc, hu=(HDR.y1-HDR.y0)/HDR.sc;
+  return { W, svg:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 ${y0u} ${W} ${hu}" width="${W*HDR.sc}" height="${hu*HDR.sc}">${lines}${paths}</svg>` };
+}
+function srcTsAt(t){ if(!measures.length||!srcM.length) return 0; const mi=measureAt(Math.max(0,t)), m=measures[mi], sm=srcM[m.src]; if(!sm) return 0; return sm.ts+Math.max(0,Math.min(m.dur,(t-m.t0)*m.bpm/240)); }
+function hdrKeyAt(t){ return HDR ? JSON.stringify(hdrState(srcTsAt(t)))+"|"+S.mfont+"|"+S.glyph : ""; }
+function updateHeader(t, force){
+  if(!HDR||!stickyX) return;
+  const key=hdrKeyAt(t); if(key===hdrCurKey && !force) return; hdrCurKey=key;
+  const st=hdrState(srcTsAt(t)), mk=hdrMarkup(st,"#000000");
+  const box=$("sticky"), inner=box.querySelector(".sticky-in"); if(!inner) return;
+  let hs=inner.querySelector(".hdr"); if(hs) hs.remove();
+  hs=document.createElement("div"); hs.className="hdr"; hs.style.cssText=`position:absolute;top:0;left:${HDR.xs-HDR.x0}px`; hs.innerHTML=mk.svg; inner.append(hs);
+  const w=(HDR.xs-HDR.x0)+mk.W*HDR.sc; inner.style.width=w+"px"; stickyX.x1=HDR.x0+w;
+}
+/* exported videos: every header the score needs, drawn once as images */
+async function prepareHeaderImages(scale){
+  hdrImgs=new Map(); if(!HDR) return;
+  const ink=getComputedStyle(document.documentElement).getPropertyValue("--ink").trim()||"#EDEFF2";
+  const keys=new Map();
+  for(const m of measures){ const key=hdrKeyAt(m.t0+1e-3); if(!keys.has(key)) keys.set(key, hdrState(srcTsAt(m.t0+1e-3))); }
+  for(const [key,st] of keys){
+    const mk=hdrMarkup(st,ink); const svg=mk.svg.replace(/width="[^"]+" height="[^"]+"/,`width="${mk.W*HDR.sc*scale}" height="${(HDR.y1-HDR.y0)*scale}"`);
+    const img=await new Promise(res=>{ const im=new Image(); const u=URL.createObjectURL(new Blob([svg],{type:"image/svg+xml"})); im.onload=()=>{ res(im); URL.revokeObjectURL(u); }; im.onerror=()=>res(null); im.src=u; });
+    if(img) hdrImgs.set(key,{img, w:mk.W*HDR.sc});
+  }
 }
 
 /* ---------- time helpers ---------- */
@@ -1206,7 +1314,7 @@ function frame(force){
   if(S.mode==="horizontal"){
     const ph=W*S.playhead/100;
     const tx = (dragX!==null ? dragX : ph - p.x);
-    track.style.transform=`translate3d(${tx}px,0,0)`; placeSticky(tx);
+    track.style.transform=`translate3d(${tx}px,0,0)`; placeSticky(tx); updateHeader(t);
     playline.style.left=ph+"px";
     placeBar(p);
   } else {
@@ -1941,6 +2049,7 @@ async function rasterScore(scale){
   const hr=host.getBoundingClientRect();
   for(const n of notes){ if(n.els){ const r=n.els.getBoundingClientRect(); n.bb={x:r.left-hr.left, y:r.top-hr.top, w:r.width, h:r.height}; } }
   const sr=svg.getBoundingClientRect();
+  try{ await prepareHeaderImages(scale); }catch(e){ console.warn(e); }
   return { tiles, w:outW, h:outH, scale, ox:(sr.left-hr.left)*scale, oy:(sr.top-hr.top)*scale };
 }
 function drawTiles(g, R, layer, sx, sy, sw, sh, dx, dy){
@@ -1987,10 +2096,11 @@ function drawExportFrame(g, L, R, t, opts){
     }
     { const fl=g.createLinearGradient(bx,0,bx+90,0); fl.addColorStop(0,stageC); fl.addColorStop(1,hexA(stageC,0)); g.fillStyle=fl; g.fillRect(bx,by,90,bh); }
     // sticky clef / key / time at the left edge once the opening bar has scrolled away
-    if(stickyX){ const sx0=stickyX.x0*s, sx1=stickyX.x1*s, orig=offX+R.ox+sx0; if(orig<bx+24){ const pad=24, w=sx1-sx0;
+    if(stickyX){ const hi=HDR&&stickyX.xs?hdrImgs.get(hdrKeyAt(t)):null; const sx0=stickyX.x0*s, sx1=hi?(stickyX.xs*s+hi.w*s):stickyX.x1*s, orig=offX+R.ox+sx0; if(orig<bx+24){ const pad=24, w=sx1-sx0;
       const sy0=stickyX.y0*s, sh=(stickyX.y1-stickyX.y0)*s;
       g.fillStyle=stageC; g.fillRect(bx,by,pad+w+10,bh);
-      drawTiles(g,R,"ink",sx0,sy0,w,sh,bx+pad,offY+R.oy+sy0);
+      if(hi){ const lw=(stickyX.xs-stickyX.x0)*s; drawTiles(g,R,"ink",sx0,sy0,lw,sh,bx+pad,offY+R.oy+sy0); g.drawImage(hi.img,bx+pad+lw,offY+R.oy+sy0,hi.w*s,sh); }
+      else drawTiles(g,R,"ink",sx0,sy0,w,sh,bx+pad,offY+R.oy+sy0);
       const fs=g.createLinearGradient(bx+pad+w+10,0,bx+pad+w+46,0); fs.addColorStop(0,stageC); fs.addColorStop(1,hexA(stageC,0)); g.fillStyle=fs; g.fillRect(bx+pad+w+10,by,36,bh); } }
     const bxp=offX+p.x*s, lh=sysH*S.lineH/100, lw=Math.max(2,S.lineW*s*0.8);
     g.shadowColor="rgba(224,164,88,.6)"; g.shadowBlur=18; g.fillStyle="#E0A458"; g.fillRect(bxp+S.lineX*s-lw/2, offY+sysTop+(sysH-lh)/2+S.lineY*s, lw, lh); g.shadowBlur=0;
@@ -2997,7 +3107,7 @@ function renderPdf(){
   total=bi*spb;
   setSource({});
   // sticky clef/key/time: the strip before bar 1
-  stickyX=null; const box=$("sticky"); box.textContent=""; box.hidden=true;
+  stickyX=null; HDR=null; const box=$("sticky"); box.textContent=""; box.hidden=true;
   const p0=st.pieces[0];
   if(p0 && mk[0]>p0.x+st.sp){
     const x0=0, x1=(mk[0]-p0.x)*ds-2, y0=Math.max(0,(st.staffTop-1.5*st.sp)*ds), y1=Math.min(st.H*ds,(p0.staffBot+1.5*st.sp)*ds), padS=Math.round(2*st.sp*ds);
