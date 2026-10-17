@@ -2033,6 +2033,36 @@ function pickMime(){
   return "";
 }
 
+/* Rewrite a MediaRecorder file as a regular MP4 (H.264 + AAC, index at the start, full duration in the header).
+   An MP4 that is already H.264/AAC is only re-packaged, not re-encoded, so this takes seconds. Returns null on failure. */
+const MEDIABUNNY_URL="https://cdn.jsdelivr.net/npm/mediabunny@1.61.6/dist/bundles/mediabunny.min.mjs";
+async function finalizeVideo(blob, bitrate, onProgress){
+  try{
+    const MB=await import(MEDIABUNNY_URL);
+    const probe=new MB.Input({source:new MB.BlobSource(blob), formats:MB.ALL_FORMATS});
+    const vt=await probe.getPrimaryVideoTrack(), at=await probe.getPrimaryAudioTrack();
+    if(!vt) return null;
+    // only ask for a bitrate when the stream really has to be re-encoded; a bitrate on a matching codec forces a re-encode
+    const video=vt.codec==="avc" ? {codec:"avc"} : {codec:"avc", bitrate};
+    const run=async audio=>{
+      const input=new MB.Input({source:new MB.BlobSource(blob), formats:MB.ALL_FORMATS});
+      const target=new MB.BufferTarget();
+      const output=new MB.Output({format:new MB.Mp4OutputFormat({fastStart:"in-memory"}), target});
+      const conv=await MB.Conversion.init({input, output, video, audio, showWarnings:false});
+      const hadAudio=!!at;
+      const lostAudio=hadAudio && conv.discardedTracks.some(d=>d.track.type==="audio");
+      const lostVideo=conv.discardedTracks.some(d=>d.track.type==="video");
+      if(!conv.isValid || lostAudio || lostVideo){ try{ await conv.cancel?.(); }catch(e){} return null; }
+      if(onProgress) conv.onProgress=onProgress;
+      await conv.execute();
+      return new Blob([target.buffer],{type:"video/mp4"});
+    };
+    // AAC plays everywhere; if this browser cannot encode it, keep the recorded audio codec instead.
+    const aac=!at || at.codec==="aac" ? {codec:"aac"} : {codec:"aac", bitrate:192e3};
+    return (await run(aac)) || (await run({}));
+  }catch(e){ console.error("finalizeVideo", e); return null; }
+}
+
 /* ----- preview window ----- */
 const xpc=$("xpCanvas"), xpg=xpc.getContext("2d");
 function xpParams(){ return S.xp[xFmt]; }
@@ -2163,10 +2193,16 @@ async function recordExport(){
     });
     stop(); rec.stop(); await done; try{ outNode.disconnect(dest); }catch(e){}
     if(XP.cancel) throw "cancel";
-    const type=(mime||"video/webm").split(";")[0], ext=type.includes("mp4")?"mp4":"webm";
-    XP.blob=new Blob(chunks,{type}); XP.name=`${(scoreName||"partitura").replace(/[\\/:*?"<>|]+/g,"")} - ${f.file}${content==="cams"?" - cameras":content==="score"?" - partitura":""}.${ext}`;
+    let type=(mime||"video/webm").split(";")[0], ext=type.includes("mp4")?"mp4":"webm";
+    XP.blob=new Blob(chunks,{type});
+    // The browser writes a fragmented MP4 (or a WebM) with no total length in its header.
+    // Telegram and phone editors read that header and show a few seconds only, so rewrite it as a plain MP4.
+    $("xpMsg").textContent="Finalizando o arquivo para celular e redes…"; $("xpBar").style.width="0";
+    const fixed=await finalizeVideo(XP.blob, f.W>f.H?10e6:9e6, p=>{ $("xpBar").style.width=(p*100).toFixed(1)+"%"; });
+    if(fixed){ XP.blob=fixed; type="video/mp4"; ext="mp4"; }
+    XP.name=`${(scoreName||"partitura").replace(/[\\/:*?"<>|]+/g,"")} - ${f.file}${content==="cams"?" - cameras":content==="score"?" - partitura":""}.${ext}`;
     XP.phase="done"; xpLayout();
-    $("xpBar").style.width="100%"; $("xpMsg").textContent=`Vídeo pronto: ${XP.name} (${(XP.blob.size/1048576).toFixed(1)} MB).`;
+    $("xpBar").style.width="100%"; $("xpMsg").textContent=`Vídeo pronto: ${XP.name} (${(XP.blob.size/1048576).toFixed(1)} MB).`+(fixed?"":" Atenção: não consegui finalizar o arquivo neste navegador; se a duração aparecer errada no celular, converta para MP4 antes de enviar.");
     $("xpSave").hidden=false;
   }catch(err){
     stop();
