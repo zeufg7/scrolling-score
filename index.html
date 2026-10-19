@@ -52,6 +52,8 @@ button,select,input{font:inherit;color:inherit}
 .stage.horizontal{overflow-y:auto;overflow-x:hidden;cursor:grab}
 .stage.horizontal.dragging{cursor:grabbing}
 .stage.jumping,.stage.jumping *{cursor:copy!important}
+.stage.annpen #pdfhost{cursor:crosshair}
+#pdfhost svg.annov{position:absolute;left:0;top:0;pointer-events:none;z-index:2;overflow:visible}
 .track{position:relative;will-change:transform}
 .stage.horizontal .track{width:max-content;padding-block:48px}
 .stage.vertical .track{padding-bottom:60vh}
@@ -2730,7 +2732,8 @@ async function saveXml(){
 }
 
 function setEdit(on){
-  if(on&&pdfMode){ if(PW){ $("pdfw").hidden=false; pwShow(1); } else toast("Abra o PDF de novo para ajustar os recortes."); return; }
+  if(pdfMode){ pdfEdit(on); return; }
+  if(PA.on) pdfEdit(false);
   if(on&&!xmlDoc){ toast("Abra uma partitura MusicXML para editar."); return; }
   editMode=on; stage.classList.toggle("editing",on); $("ebar").hidden=!on; $("btnEdit").classList.toggle("on",on);
   if(on){ requestAnimationFrame(()=>{ frame(true); buildItems(); renderEbar(); }); } else { setSel(null); }
@@ -2738,7 +2741,7 @@ function setEdit(on){
 }
 $("btnEdit").onclick=()=>setEdit(!editMode);
 $("eExit").onclick=()=>setEdit(false);
-$("eUndo").onclick=undo; $("eRedo").onclick=redo; $("eSave").onclick=saveXml;
+$("eUndo").onclick=()=>{ if(PA.on){ annUndo(); renderAnnBar(); } else undo(); }; $("eRedo").onclick=()=>{ if(PA.on){ annRedo(); renderAnnBar(); } else redo(); }; $("eSave").onclick=saveXml;
 
 function neighbor(dir){
   if(!sel||!sel.xn) return;
@@ -2746,6 +2749,7 @@ function neighbor(dir){
   const i=list.indexOf(sel); const nx=list[i+dir]; if(nx){ setSel(nx); const m=measures[perfOf(nx.xn.mi)]; if(m && !playing) seekTo(m.t0+(nx.xn.t*240/m.bpm)); }
 }
 function editKeys(e){
+  if(PA.on) return annKeys(e);
   if(!editMode) return false;
   const mod=e.ctrlKey||e.metaKey;
   if(mod&&(e.key==="z"||e.key==="Z")){ e.preventDefault(); e.shiftKey?redo():undo(); return true; }
@@ -2927,12 +2931,12 @@ async function openPdf(file){
     PW={ file, key, name:file.name.replace(/\.pdf$/i,""), pages, step:1,
       crops: proj&&proj.crops ? proj.crops : pages.flatMap((P,i)=>detectSystems(P,i)),
       markers: proj&&proj.markers ? proj.markers : null,
-      firstNum: proj?proj.firstNum:1, beats: proj?proj.beats:4, beatType: proj?proj.beatType:4, bpm: proj?proj.bpm:72, spans: proj&&proj.spans?proj.spans:{}, strip:null, sel:null, mz:240 };
+      firstNum: proj?proj.firstNum:1, beats: proj?proj.beats:4, beatType: proj?proj.beatType:4, bpm: proj?proj.bpm:72, spans: proj&&proj.spans?proj.spans:{}, anns: proj&&proj.anns?proj.anns:[], strip:null, sel:null, mz:240 };
     pwBusy(null); $("pwLab").textContent="PDF · "+PW.name.toUpperCase(); pwShow(1);
     if(!PW.crops.length) toast("Não encontrei pautas automaticamente. Desenhe os recortes à mão.");
   }catch(e){ console.error(e); pwBusy(null); $("pdfw").hidden=true; toast("Não consegui abrir esse PDF. Se ele for uma imagem escaneada protegida, salve uma cópia sem senha e tente de novo."); }
 }
-function pwSave(){ if(!PW) return; try{ localStorage.setItem("pr.pdfproj:"+PW.key, JSON.stringify({crops:PW.crops, markers:PW.markers, firstNum:PW.firstNum, beats:PW.beats, beatType:PW.beatType, bpm:PW.bpm, spans:PW.spans})); }catch(e){} }
+function pwSave(){ if(!PW) return; try{ localStorage.setItem("pr.pdfproj:"+PW.key, JSON.stringify({crops:PW.crops, markers:PW.markers, firstNum:PW.firstNum, beats:PW.beats, beatType:PW.beatType, bpm:PW.bpm, spans:PW.spans, anns:PW.anns||[]})); }catch(e){} }
 function sortCrops(){ PW.crops.sort((a,b)=>a.p-b.p||a.y-b.y||a.x-b.x); }
 function pwShow(step){
   PW.step=step; $("pwSteps").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.s===step)));
@@ -3072,7 +3076,7 @@ $("pwCancel").onclick=()=>{ $("pdfw").hidden=true; if(!pdfMode) PW=null; };
 async function applyPdf(){
   if(!PW.strip){ sortCrops(); PW.strip=stitch(PW.pages,PW.crops); }
   stop(); pdfMode=true;
-  PDF={ name:PW.name, key:PW.key, strip:PW.strip, markers:[...PW.markers], firstNum:PW.firstNum, beats:PW.beats, beatType:PW.beatType, bpm:PW.bpm, spans:{...PW.spans} };
+  PDF={ name:PW.name, key:PW.key, strip:PW.strip, markers:[...PW.markers], firstNum:PW.firstNum, beats:PW.beats, beatType:PW.beatType, bpm:PW.bpm, spans:{...PW.spans}, anns:(PW.anns=PW.anns||[]) };
   scoreName=PDF.name; loaded=true; xmlDoc=null;
   $("scoreName").textContent=PDF.name; $("ovTitleN").textContent=PDF.name; $("scoreLab").textContent="Partitura em PDF";
   $("instList").textContent="";
@@ -3091,7 +3095,8 @@ function renderPdf(){
   S.mode="horizontal"; stage.classList.add("horizontal"); stage.classList.remove("vertical");
   const st=PDF.strip, ds=pdfDisplayScale(), ink=inkColor(); PDF.ds=ds;
   ph.textContent=""; ph.style.width=(st.W*ds)+"px"; ph.style.height=(st.H*ds)+"px";
-  for(const pc of st.pieces){ const c=tint(pc.mask,ink,pc.w*Math.min(2,ds*1.5),st.H*Math.min(2,ds*1.5)); Object.assign(c.style,{position:"absolute",left:(pc.x*ds)+"px",top:"0",width:(pc.w*ds)+"px",height:(st.H*ds)+"px"}); ph.append(c); }
+  annApplyMasks(null);
+  st.pieces.forEach((pc,pi)=>{ const c=tint(pc.mask,ink,pc.w*Math.min(2,ds*1.5),st.H*Math.min(2,ds*1.5)); c.dataset.pi=pi; Object.assign(c.style,{position:"absolute",left:(pc.x*ds)+"px",top:"0",width:(pc.w*ds)+"px",height:(st.H*ds)+"px"}); ph.append(c); });
   // bars -> measures and timeline
   const mk=PDF.markers, n=mk.length-1, barW=PDF.beats/PDF.beatType, spb=barW*240/PDF.bpm;
   measures=[]; tl=[]; notes=[]; xmlTempos=[];
@@ -3118,7 +3123,7 @@ function renderPdf(){
     const inner=document.createElement("div"); inner.className="sticky-in"; inner.style.width=(x1-x0)+"px"; inner.style.height=(y1-y0)+"px"; inner.append(c);
     box.style.paddingTop=box.style.paddingBottom=padS+"px"; box.append(inner); box.style.top=(host.offsetTop+y0-padS)+"px";
   }
-  unroll(true);
+  unroll(true); annOverlay();
   $("loading").hidden=true; lastIdx=-1; clearHl(); seekTo(pos,true);
   return Promise.resolve();
 }
@@ -3127,7 +3132,7 @@ async function rasterPdf(scale){
   for(const pc of st.pieces){ const w=pc.w*ds*scale, h=st.H*ds*scale; const c=tint(pc.mask,ink,w,h); tiles.push({x:Math.round(pc.x*ds*scale), w:c.width, ink:c, amber:c}); }
   return { tiles, w:Math.round(st.W*ds*scale), h:Math.round(st.H*ds*scale), scale, ox:0, oy:0 };
 }
-function leavePdf(){ if(!pdfMode) return; pdfMode=false; PDF=null; $("pdfhost").hidden=true; $("pdfhost").textContent=""; $("osmd").hidden=false; host=$("osmd"); }
+function leavePdf(){ if(PA.on) pdfEdit(false); if(!pdfMode) return; pdfMode=false; PDF=null; $("pdfhost").hidden=true; $("pdfhost").textContent=""; $("osmd").hidden=false; host=$("osmd"); }
 async function restorePdf(key){
   const file=await idbGet("pdf:"+key); if(!file) return false;
   try{
@@ -3135,7 +3140,7 @@ async function restorePdf(key){
     const pages=await loadPdfPages(file);
     let proj=null; try{ proj=JSON.parse(localStorage.getItem("pr.pdfproj:"+key)||"null"); }catch(e){}
     if(!proj||!proj.markers) return false;
-    PW={file,key,name:file.name.replace(/\.pdf$/i,""),pages,step:3,crops:proj.crops,markers:proj.markers,firstNum:proj.firstNum,beats:proj.beats,beatType:proj.beatType,bpm:proj.bpm,spans:proj.spans||{},strip:null,sel:null,mz:240};
+    PW={file,key,name:file.name.replace(/\.pdf$/i,""),pages,step:3,crops:proj.crops,markers:proj.markers,firstNum:proj.firstNum,beats:proj.beats,beatType:proj.beatType,bpm:proj.bpm,spans:proj.spans||{},anns:proj.anns||[],strip:null,sel:null,mz:240};
     await applyPdf(); return true;
   }catch(e){ console.error(e); return false; }
 }
@@ -3419,6 +3424,181 @@ function applyOrderText(){
 }
 $("jAuto").onclick=()=>{ JM.order=null; saveJumps(); unroll(false); toast("Ordem calculada pelos símbolos."); };
 $("jReset").onclick=()=>{ JM.marks=JSON.parse(JSON.stringify(JM.file)); JM.user=false; JM.order=null; saveJumps(); unroll(false); toast(Object.keys(JM.file).length?"Símbolos do arquivo restaurados.":"Marcações apagadas."); };
+
+/* ---------- PDF markup: eraser, pencil, text, slurs and ties drawn onto the strip ---------- */
+const PA={ on:false, tool:"select", sel:-1, drag:null, undo:[], redo:[], text:{size:"m", box:false, bold:true}, pen:"m" };
+const PA_TOOLS=[["select","Selecionar","V","Selecionar, mover e ajustar o que você desenhou"],["erase","Borracha","E","Arraste um retângulo sobre o que quer apagar da partitura"],["pen","Lápis","P","Desenhe à mão livre"],["text","Texto","T","Clique onde quer escrever (marcação de ensaio, indicação…)"],["slur","Lig. de expressão","S","Arraste do início ao fim da frase"],["tie","Lig. de duração","L","Arraste de uma nota até a nota ligada"]];
+const annList=()=>PDF&&PDF.anns?PDF.anns:[];
+const annSp=()=>(PDF&&PDF.strip&&PDF.strip.sp)||12;
+function annFont(a){ return `${a.bold!==false?"bold ":""}${a.size}px Georgia, "Times New Roman", serif`; }
+let annMeasureCtx=null;
+function annTextBox(a){ if(!annMeasureCtx) annMeasureCtx=document.createElement("canvas").getContext("2d"); annMeasureCtx.font=annFont(a); const w=annMeasureCtx.measureText(a.txt||" ").width, h=a.size*0.78, pad=a.box?a.size*0.22:0; return {x:a.x-pad, y:a.y-h-pad, w:w+2*pad, h:h+2*pad}; }
+function slurGeom(a){ // endpoints, control points of outer/inner curves; h>0 bends up
+  const dx=a.x2-a.x1, dy=a.y2-a.y1, L=Math.max(1,Math.hypot(dx,dy)), nx=dy/L, ny=-dx/L, mx=(a.x1+a.x2)/2, my=(a.y1+a.y2)/2;
+  const t=a.t==="tie"?annSp()*0.13:annSp()*0.2, s=a.h>=0?1:-1;
+  return { qa:[mx+nx*2*a.h, my+ny*2*a.h], qb:[mx+nx*(2*a.h-2*t*s), my+ny*(2*a.h-2*t*s)], peak:[mx+nx*a.h, my+ny*a.h], nx, ny, mx, my };
+}
+function annBox(a){
+  if(a.t==="erase") return {x:a.x,y:a.y,w:a.w,h:a.h};
+  if(a.t==="text") return annTextBox(a);
+  if(a.t==="pen"){ let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; for(const [x,y] of a.pts){ x0=Math.min(x0,x); y0=Math.min(y0,y); x1=Math.max(x1,x); y1=Math.max(y1,y); } const p=a.w/2+2; return {x:x0-p,y:y0-p,w:x1-x0+2*p,h:y1-y0+2*p}; }
+  const g=slurGeom(a), xs=[a.x1,a.x2,g.peak[0]], ys=[a.y1,a.y2,g.peak[1]]; const x0=Math.min(...xs), y0=Math.min(...ys); return {x:x0-3,y:y0-3,w:Math.max(...xs)-x0+6,h:Math.max(...ys)-y0+6};
+}
+function annPaint(g,a){ // in strip units, ink as opaque white in the mask
+  g.save(); g.fillStyle="#fff"; g.strokeStyle="#fff";
+  if(a.t==="erase"){ g.globalCompositeOperation="destination-out"; g.fillRect(a.x,a.y,a.w,a.h); }
+  else if(a.t==="pen"){ g.lineWidth=a.w; g.lineCap=g.lineJoin="round"; const p=a.pts; g.beginPath(); g.moveTo(p[0][0],p[0][1]); for(let i=1;i<p.length-1;i++){ g.quadraticCurveTo(p[i][0],p[i][1],(p[i][0]+p[i+1][0])/2,(p[i][1]+p[i+1][1])/2); } const l=p[p.length-1]; g.lineTo(l[0],l[1]); if(p.length===1) g.lineTo(l[0]+0.01,l[1]); g.stroke(); }
+  else if(a.t==="text"){ g.font=annFont(a); g.textBaseline="alphabetic"; g.fillText(a.txt,a.x,a.y); if(a.box){ const b=annTextBox(a); g.lineWidth=Math.max(1,a.size*0.07); g.strokeRect(b.x,b.y,b.w,b.h); } }
+  else { const s=slurGeom(a); g.beginPath(); g.moveTo(a.x1,a.y1); g.quadraticCurveTo(s.qa[0],s.qa[1],a.x2,a.y2); g.quadraticCurveTo(s.qb[0],s.qb[1],a.x1,a.y1); g.fill(); g.lineWidth=annSp()*0.03; g.stroke(); }
+  g.restore();
+}
+/* rebuild the masks of the pieces an edit touches (all of them when no list is given) */
+function annApplyMasks(only){
+  if(!PDF||!PDF.strip) return [];
+  const st=PDF.strip, list=annList(), done=[];
+  st.pieces.forEach((pc,pi)=>{
+    if(only && !only.has(pi)) return;
+    if(!pc.mask0) pc.mask0=pc.mask;
+    const hits=list.filter(a=>{ const b=annBox(a); return b.x<pc.x+pc.w && b.x+b.w>pc.x; });
+    if(!hits.length){ pc.mask=pc.mask0; done.push(pi); return; }
+    const c=document.createElement("canvas"); c.width=pc.mask0.width; c.height=pc.mask0.height; const g=c.getContext("2d"); g.drawImage(pc.mask0,0,0);
+    g.translate(-pc.x,0); for(const a of hits) annPaint(g,a);
+    pc.mask=c; done.push(pi);
+  });
+  return done;
+}
+function piecesFor(boxes){ const s=new Set(); if(!PDF) return s; PDF.strip.pieces.forEach((pc,pi)=>{ for(const b of boxes) if(b && b.x<pc.x+pc.w && b.x+b.w>pc.x) s.add(pi); }); return s; }
+function annRefresh(boxes){ // re-tint only the touched pieces
+  const set=boxes?piecesFor(boxes):null; const done=annApplyMasks(set);
+  const ph=$("pdfhost"), st=PDF.strip, ds=PDF.ds, ink=inkColor();
+  for(const pi of done){ const pc=st.pieces[pi], old=ph.querySelector(`canvas[data-pi="${pi}"]`); if(!old) continue;
+    const c=tint(pc.mask,ink,pc.w*Math.min(2,ds*1.5),st.H*Math.min(2,ds*1.5)); c.dataset.pi=pi; c.style.cssText=old.style.cssText; old.replaceWith(c); }
+  annOverlay();
+}
+function annCommit(before, boxes){ PA.undo.push(before); if(PA.undo.length>100) PA.undo.shift(); PA.redo=[]; pwSaveAnns(); annRefresh(boxes); }
+function pwSaveAnns(){ if(PW) PW.anns=PDF.anns; pwSave(); }
+const annSnap=()=>JSON.stringify(annList());
+function annUndo(){ if(!PA.undo.length) return; PA.redo.push(annSnap()); const prev=JSON.parse(PA.undo.pop()); PDF.anns.length=0; PDF.anns.push(...prev); PA.sel=-1; pwSaveAnns(); annRefresh(null); }
+function annRedo(){ if(!PA.redo.length) return; PA.undo.push(annSnap()); const nx=JSON.parse(PA.redo.pop()); PDF.anns.length=0; PDF.anns.push(...nx); PA.sel=-1; pwSaveAnns(); annRefresh(null); }
+
+/* overlay: what you drew, outlined so it can be picked, plus handles on the selection */
+function annOverlay(){
+  const ph=$("pdfhost"); let ov=ph.querySelector("svg.annov");
+  if(!PA.on||!PDF){ if(ov) ov.remove(); return; }
+  const st=PDF.strip, ds=PDF.ds;
+  if(!ov){ ov=document.createElementNS("http://www.w3.org/2000/svg","svg"); ov.setAttribute("class","annov"); ph.append(ov); }
+  ov.setAttribute("width",st.W*ds); ov.setAttribute("height",st.H*ds); ov.setAttribute("viewBox",`0 0 ${st.W} ${st.H}`);
+  let h=""; const sw=1.2/ds;
+  annList().forEach((a,i)=>{ const b=annBox(a), on=i===PA.sel;
+    h+=`<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="${a.t==="erase"?"rgba(224,88,88,.10)":"none"}" stroke="${on?"#E0A458":a.t==="erase"?"rgba(224,88,88,.75)":"rgba(224,164,88,.55)"}" stroke-width="${on?2*sw:sw}" stroke-dasharray="${on?"":4/ds+" "+3/ds}"/>`; });
+  const a=annList()[PA.sel];
+  if(a&&(a.t==="slur"||a.t==="tie")){ const g=slurGeom(a), r=6/ds; for(const [x,y] of [[a.x1,a.y1],[a.x2,a.y2],g.peak]) h+=`<circle cx="${x}" cy="${y}" r="${r}" fill="#E0A458" stroke="#1A1206" stroke-width="${sw}"/>`; }
+  if(PA.drag&&PA.drag.rect){ const r=PA.drag.rect; h+=`<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="rgba(224,88,88,.18)" stroke="#E05858" stroke-width="${sw}"/>`; }
+  if(PA.drag&&PA.drag.preview){ const p=PA.drag.preview; if(p.t==="pen"){ h+=`<polyline points="${p.pts.map(q=>q.join(",")).join(" ")}" fill="none" stroke="#E0A458" stroke-width="${p.w}" stroke-linecap="round" stroke-linejoin="round"/>`; } else { const g=slurGeom(p); h+=`<path d="M${p.x1} ${p.y1}Q${g.qa[0]} ${g.qa[1]} ${p.x2} ${p.y2}Q${g.qb[0]} ${g.qb[1]} ${p.x1} ${p.y1}Z" fill="#E0A458"/>`; } }
+  ov.innerHTML=h;
+}
+function annPt(e){ const r=$("pdfhost").getBoundingClientRect(); return {x:(e.clientX-r.left)/PDF.ds, y:(e.clientY-r.top)/PDF.ds}; }
+function annHit(p){ const L=annList(); for(let i=L.length-1;i>=0;i--){ const b=annBox(L[i]), m=4/PDF.ds; if(p.x>=b.x-m&&p.x<=b.x+b.w+m&&p.y>=b.y-m&&p.y<=b.y+b.h+m) return i; } return -1; }
+function penWidth(){ return annSp()*({s:0.1,m:0.16,l:0.26}[PA.pen]||0.16); }
+function textSize(){ return annSp()*({s:1.4,m:2.0,l:2.8}[PA.text.size]||2.0); }
+
+function annDown(e){
+  if(!PA.on||!PDF||e.button!==0||e.target.closest(".ebar")||e.target.closest(".annedit")) return;
+  const p=annPt(e), L=annList(), sp=annSp();
+  if(PA.tool==="select"){
+    const a=L[PA.sel];
+    if(a&&(a.t==="slur"||a.t==="tie")){ const g=slurGeom(a), r=8/PDF.ds; const hs=[[a.x1,a.y1,"p1"],[a.x2,a.y2,"p2"],[g.peak[0],g.peak[1],"h"]]; for(const [x,y,k] of hs) if(Math.hypot(p.x-x,p.y-y)<=r){ PA.drag={kind:"handle",k,before:annSnap(),b0:annBox(a)}; return stopEv(e); } }
+    const i=annHit(p); if(i<0){ if(PA.sel>=0){ PA.sel=-1; annOverlay(); renderAnnBar(); } return; } // empty: let the score scroll
+    PA.sel=i; PA.drag={kind:"move",p0:p,orig:JSON.parse(JSON.stringify(L[i])),before:annSnap(),b0:annBox(L[i])}; annOverlay(); renderAnnBar(); return stopEv(e);
+  }
+  if(PA.tool==="erase"){ PA.drag={kind:"erase",p0:p,rect:{x:p.x,y:p.y,w:0,h:0}}; annOverlay(); return stopEv(e); }
+  if(PA.tool==="pen"){ PA.drag={kind:"pen",preview:{t:"pen",w:penWidth(),pts:[[p.x,p.y]]}}; annOverlay(); return stopEv(e); }
+  if(PA.tool==="slur"||PA.tool==="tie"){ PA.drag={kind:"curve",p0:p,preview:{t:PA.tool,x1:p.x,y1:p.y,x2:p.x,y2:p.y,h:0}}; return stopEv(e); }
+  if(PA.tool==="text"){ stopEv(e); const i=annHit(p); if(i>=0&&L[i].t==="text") editText(i); else editText(-1,p); return; }
+}
+function annMove(e){
+  const d=PA.drag; if(!d) return; const p=annPt(e), L=annList(), sp=annSp();
+  if(d.kind==="erase"){ d.rect={x:Math.min(p.x,d.p0.x),y:Math.min(p.y,d.p0.y),w:Math.abs(p.x-d.p0.x),h:Math.abs(p.y-d.p0.y)}; }
+  else if(d.kind==="pen"){ const q=d.preview.pts, l=q[q.length-1]; if(Math.hypot(p.x-l[0],p.y-l[1])>1.5/PDF.ds) q.push([+p.x.toFixed(1),+p.y.toFixed(1)]); }
+  else if(d.kind==="curve"){ const pv=d.preview, len=Math.hypot(p.x-d.p0.x,p.y-d.p0.y); pv.x2=p.x; pv.y2=p.y; const up=e.shiftKey?-1:1; pv.h=up*Math.min(sp*(pv.t==="tie"?1.0:3.5), Math.max(sp*0.5, len*(pv.t==="tie"?0.12:0.16))); }
+  else if(d.kind==="move"){ const a=L[PA.sel], o=d.orig, dx=p.x-d.p0.x, dy=p.y-d.p0.y;
+    if(a.t==="pen") a.pts=o.pts.map(([x,y])=>[+(x+dx).toFixed(1),+(y+dy).toFixed(1)]);
+    else if(a.t==="slur"||a.t==="tie"){ a.x1=o.x1+dx; a.y1=o.y1+dy; a.x2=o.x2+dx; a.y2=o.y2+dy; }
+    else { a.x=o.x+dx; a.y=o.y+dy; } d.moved=true; }
+  else if(d.kind==="handle"){ const a=L[PA.sel];
+    if(d.k==="p1"){ a.x1=p.x; a.y1=p.y; } else if(d.k==="p2"){ a.x2=p.x; a.y2=p.y; }
+    else { const g=slurGeom(a); a.h=(p.x-g.mx)*g.nx+(p.y-g.my)*g.ny; } d.moved=true; }
+  annOverlay();
+}
+function annUp(e){
+  const d=PA.drag; if(!d) return; PA.drag=null; const L=annList();
+  if(d.kind==="erase"){ const r=d.rect; if(r.w>2/PDF.ds&&r.h>2/PDF.ds){ const before=annSnap(); L.push({t:"erase",x:+r.x.toFixed(1),y:+r.y.toFixed(1),w:+r.w.toFixed(1),h:+r.h.toFixed(1)}); annCommit(before,[r]); } else annOverlay(); return; }
+  if(d.kind==="pen"){ const before=annSnap(), a=d.preview; L.push(a); annCommit(before,[annBox(a)]); return; }
+  if(d.kind==="curve"){ const a=d.preview; if(Math.hypot(a.x2-a.x1,a.y2-a.y1)<annSp()*0.8){ annOverlay(); return; } for(const k of ["x1","y1","x2","y2","h"]) a[k]=+a[k].toFixed(1); const before=annSnap(); L.push(a); PA.sel=L.length-1; annCommit(before,[annBox(a)]); renderAnnBar(); return; }
+  if((d.kind==="move"||d.kind==="handle")&&d.moved){ annCommit(d.before,[d.b0,annBox(L[PA.sel])]); renderAnnBar(); return; }
+  annOverlay();
+}
+function stopEv(e){ e.preventDefault(); e.stopPropagation(); }
+
+/* text: an input box over the score */
+function editText(i,p){
+  const L=annList(), a=i>=0?L[i]:{t:"text",x:p.x,y:p.y+textSize()*0.35,size:textSize(),bold:PA.text.bold,box:PA.text.box,txt:""};
+  const ph=$("pdfhost"); ph.querySelectorAll(".annedit").forEach(n=>n.remove());
+  const inp=document.createElement("input"); inp.className="annedit"; inp.value=a.txt; inp.placeholder="Texto";
+  const ds=PDF.ds; Object.assign(inp.style,{position:"absolute",left:(a.x*ds)+"px",top:((a.y-a.size*0.95)*ds)+"px",font:`${a.bold!==false?"bold ":""}${a.size*ds}px Georgia, serif`,minWidth:"60px",zIndex:5,background:"rgba(13,16,21,.85)",color:"#EDEFF2",border:"1px solid #E0A458",borderRadius:"4px",padding:"0 4px"});
+  ph.append(inp); setTimeout(()=>inp.focus(),0);
+  let done=false; const fin=save=>{ if(done) return; done=true; const v=inp.value.trim(); inp.remove(); if(!save) return;
+    const before=annSnap(), b0=i>=0?annBox(L[i]):null;
+    if(i>=0){ if(v) L[i].txt=v; else L.splice(i,1); } else if(v){ a.txt=v; L.push(a); PA.sel=L.length-1; } else return;
+    annCommit(before,[b0, v?annBox(i>=0?L[i]:a):null].filter(Boolean)); renderAnnBar(); };
+  inp.addEventListener("keydown",ev=>{ ev.stopPropagation(); if(ev.key==="Enter") fin(true); if(ev.key==="Escape") fin(false); });
+  inp.addEventListener("blur",()=>fin(true));
+}
+
+/* tool bar */
+function renderAnnBar(){
+  if(!PA.on) return;
+  $("eLab").innerHTML=`<b>PDF</b> · ${annList().length} marcaç${annList().length===1?"ão":"ões"}`;
+  const box=$("eCtx"); box.textContent="";
+  const tools=grp(...PA_TOOLS.map(([k,l,key,tt])=>{ const b=btn(l,`${tt} (${key})`,()=>{ PA.tool=k; stage.classList.toggle("annpen",k!=="select"); renderAnnBar(); }); if(PA.tool===k) b.classList.add("on"); return b; }));
+  box.append(tools);
+  const a=annList()[PA.sel];
+  if(PA.tool==="pen"){ box.append(grp(...[["s","Fino"],["m","Médio"],["l","Grosso"]].map(([k,l])=>{ const b=btn(l,"Espessura do lápis",()=>{ PA.pen=k; renderAnnBar(); }); if(PA.pen===k) b.classList.add("on"); return b; }))); }
+  if(PA.tool==="text"||(a&&a.t==="text")){
+    const T=a&&a.t==="text"?a:null;
+    const sizeNow=T?T.size:textSize();
+    const sz=grp(...[["s","Pequeno"],["m","Médio"],["l","Grande"]].map(([k,l])=>{ const b=btn(l,"Tamanho do texto",()=>{ PA.text.size=k; if(T){ const before=annSnap(), b0=annBox(T); T.size=textSize(); annCommit(before,[b0,annBox(T)]); } renderAnnBar(); }); if(Math.abs(annSp()*({s:1.4,m:2.0,l:2.8}[k])-sizeNow)<0.01) b.classList.add("on"); return b; }));
+    const bx=btn("▢ Caixa","Moldura em volta, como marcação de ensaio",()=>{ if(T){ const before=annSnap(), b0=annBox(T); T.box=!T.box; annCommit(before,[b0,annBox(T)]); } else PA.text.box=!PA.text.box; renderAnnBar(); }); if(T?T.box:PA.text.box) bx.classList.add("on");
+    const bd=btn("Negrito","",()=>{ if(T){ const before=annSnap(), b0=annBox(T); T.bold=T.bold===false; annCommit(before,[b0,annBox(T)]); } else PA.text.bold=!PA.text.bold; renderAnnBar(); }); if(T?T.bold!==false:PA.text.bold) bd.classList.add("on");
+    box.append(grp(sz,bx,bd)); if(T) box.append(grp(btn("Editar texto","",()=>editText(PA.sel))));
+  }
+  if(a&&(a.t==="slur"||a.t==="tie")) box.append(grp(btn("Inverter ⇅","Curva para cima ou para baixo",()=>{ const before=annSnap(), b0=annBox(a); a.h=-a.h; annCommit(before,[b0,annBox(a)]); renderAnnBar(); }), btn(a.t==="tie"?"Virar expressão":"Virar duração","",()=>{ const before=annSnap(), b0=annBox(a); a.t=a.t==="tie"?"slur":"tie"; annCommit(before,[b0,annBox(a)]); renderAnnBar(); })));
+  if(a) box.append(grp(btn(a.t==="erase"?"Desfazer apagado":"Excluir","Remover esta marcação (Delete)",annDelete,"")));
+  box.append(grp(btn("Recortes e barras","Voltar ao ajuste de recortes, barras e compasso",()=>{ setEdit(false); if(PW){ $("pdfw").hidden=false; pwShow(1); } })));
+  const hint=document.createElement("span"); hint.className="elab";
+  hint.textContent={select:"Clique numa marcação para mover ou ajustar. Arraste o vazio para rolar.",erase:"Arraste sobre o que quer apagar. Para trazer de volta, selecione o retângulo e exclua.",pen:"Desenhe com o mouse ou a caneta.",text:"Clique onde quer o texto e digite. Enter confirma.",slur:"Arraste do início ao fim da frase. Segure Shift para curvar para baixo.",tie:"Arraste de uma nota até a outra. Segure Shift para curvar para baixo."}[PA.tool];
+  box.append(hint);
+}
+function annDelete(){ const L=annList(); if(PA.sel<0||!L[PA.sel]) return; const before=annSnap(), b0=annBox(L[PA.sel]); L.splice(PA.sel,1); PA.sel=-1; annCommit(before,[b0]); renderAnnBar(); }
+function pdfEdit(on){
+  PA.on=on; editMode=on; PA.sel=-1; PA.drag=null;
+  stage.classList.toggle("editing",on); stage.classList.toggle("annpen",on&&PA.tool!=="select"); $("ebar").hidden=!on; $("btnEdit").classList.toggle("on",on);
+  $("eSave").hidden=on;
+  if(on){ if(PDF&&!PDF.anns) PDF.anns=[]; renderAnnBar(); }
+  annOverlay(); requestAnimationFrame(()=>frame(true));
+}
+function annKeys(e){
+  if(!PA.on) return false; const mod=e.ctrlKey||e.metaKey;
+  if(mod&&(e.key==="z"||e.key==="Z")){ e.preventDefault(); e.shiftKey?annRedo():annUndo(); renderAnnBar(); return true; }
+  if(mod&&(e.key==="y"||e.key==="Y")){ e.preventDefault(); annRedo(); renderAnnBar(); return true; }
+  if(e.key==="Delete"||e.key==="Backspace"){ if(PA.sel>=0){ e.preventDefault(); annDelete(); return true; } return false; }
+  if(e.key==="Escape"){ if(PA.sel>=0){ PA.sel=-1; annOverlay(); renderAnnBar(); } else setEdit(false); return true; }
+  if(!mod){ const t=PA_TOOLS.find(x=>x[2].toLowerCase()===e.key.toLowerCase()); if(t){ PA.tool=t[0]; stage.classList.toggle("annpen",t[0]!=="select"); renderAnnBar(); return true; } }
+  return false;
+}
+stage.addEventListener("pointerdown",annDown,true);
+window.addEventListener("pointermove",e=>{ if(PA.drag){ annMove(e); } },true);
+window.addEventListener("pointerup",e=>{ if(PA.drag){ annUp(e); e.stopPropagation(); } },true);
 
 /* ---------- boot ---------- */
 applyBg(); applyOv(); syncChips(); $("rateOut").textContent=S.rate+"%"; showTl(S.tl);
