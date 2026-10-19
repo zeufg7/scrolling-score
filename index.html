@@ -81,7 +81,10 @@ button,select,input{font:inherit;color:inherit}
 
 /* on-screen captions for recording */
 .ov{position:absolute;z-index:5;pointer-events:none;color:var(--ink)}
-.ov-handle{top:20px;left:max(24px,env(safe-area-inset-left,0px));font-family:var(--mono);font-size:13px;letter-spacing:.2em;opacity:.8}
+.ov-handle{top:18px;left:max(24px,env(safe-area-inset-left,0px));font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;opacity:.85;display:flex;flex-direction:column;gap:4px;max-width:45%}
+.ov-handle span:empty,.ov-title .s:empty,.ov-copy:empty{display:none}
+.ov-title .s{font-family:var(--sans);font-size:14px;font-style:italic;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ov-copy{bottom:20px;right:max(24px,env(safe-area-inset-right,0px));max-width:38%;text-align:right;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;opacity:.6;line-height:1.35}
 .ov-meas{top:16px;right:max(24px,env(safe-area-inset-right,0px));text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:2px}
 .ov-meas .k{font-family:var(--mono);font-size:11px;letter-spacing:.2em;opacity:.75}
 .ov-meas .n{font-family:var(--display);font-weight:900;font-size:56px;line-height:.9;color:var(--amber);font-variant-numeric:tabular-nums}
@@ -319,7 +322,6 @@ body.rec .stage{cursor:none}
 <div class="app">
   <header class="top">
     <div class="brand">
-      <span class="handle">@O_ZEUFG</span>
       <span class="appname">Scrolling Score</span>
     </div>
     <div class="scoreinfo">
@@ -368,9 +370,10 @@ body.rec .stage{cursor:none}
     <div class="sticky" id="sticky" hidden></div>
     <div class="playline" id="playline"></div>
     <div class="fade l"></div><div class="fade r"></div>
-    <div class="ov ov-handle" id="ovHandle">@O_ZEUFG</div>
+    <div class="ov ov-handle" id="ovHandle"><span id="ovComp"></span><span id="ovArr"></span></div>
+    <div class="ov ov-copy" id="ovCopy"></div>
     <div class="ov ov-meas" id="ovMeas"><span class="k">COMPASSO</span><span class="n" id="ovMeasN">1</span></div>
-    <div class="ov ov-title" id="ovTitle"><span class="k" id="ovTitleK">ANÁLISE DE PARTITURA</span><span class="n" id="ovTitleN">Tema de exemplo</span></div>
+    <div class="ov ov-title" id="ovTitle"><span class="k" id="ovTitleK">ANÁLISE DE PARTITURA</span><span class="n" id="ovTitleN">Tema de exemplo</span><span class="s" id="ovTitleS"></span></div>
     <div class="vidbox br" id="vidbox" hidden><video id="audio" playsinline preload="auto"></video></div>
     <div class="loading" id="loading">CARREGANDO PARTITURA…</div>
     <div class="drop" id="drop" hidden>Solte a partitura (MusicXML) ou o áudio</div>
@@ -482,7 +485,13 @@ body.rec .stage{cursor:none}
 
     <section class="sec">
       <h3>Textos na tela</h3>
-      <label class="check"><input type="checkbox" id="chkOv" checked> Mostrar textos na tela (@, compasso, título)</label>
+      <label class="check"><input type="checkbox" id="chkOv" checked> Mostrar textos na tela (créditos, compasso, título)</label>
+      <div class="field"><label for="mTitle">Título</label><input type="text" id="mTitle" class="num meta" style="width:100%" data-k="title"></div>
+      <div class="field"><label for="mSub">Subtítulo</label><input type="text" id="mSub" class="num meta" style="width:100%" data-k="subtitle"></div>
+      <div class="field"><label for="mComp">Compositor</label><input type="text" id="mComp" class="num meta" style="width:100%" data-k="composer"></div>
+      <div class="field"><label for="mArr">Arranjador</label><input type="text" id="mArr" class="num meta" style="width:100%" data-k="arranger"></div>
+      <div class="field"><label for="mRights">Copyright</label><input type="text" id="mRights" class="num meta" style="width:100%" data-k="rights"></div>
+      <div class="row"><button class="btn" id="mFromXml" title="Preencher com o que está escrito no arquivo MusicXML">Puxar do MusicXML</button></div>
       <div class="field"><label for="ovSub">Texto acima do título</label><input type="text" id="ovSub" class="num" style="width:100%" value="ANÁLISE DE PARTITURA" maxlength="40"></div>
     </section>
 
@@ -616,7 +625,7 @@ body.rec .stage{cursor:none}
           </div>
         </div>
         <h3 class="xh">Textos</h3>
-        <label class="check"><input type="checkbox" id="xText" checked> @, compasso e título</label>
+        <label class="check"><input type="checkbox" id="xText" checked> Créditos, compasso e título</label>
         <label class="check"><input type="checkbox" id="xGuides" checked> Mostrar áreas seguras do Reels na prévia</label>
         <button class="btn" id="xReset">Restaurar este formato</button>
       </div>
@@ -841,6 +850,14 @@ function prepareDoc(doc){
       changed++;
     }
   }
+  // a piece ends with a final bar line (Dorico leaves it implicit when the last bar carries an ending bracket)
+  for(const part of parts){
+    const ms=part.getElementsByTagName("measure"), last=ms[ms.length-1]; if(!last) continue;
+    let bl=[...last.children].find(c=>c.tagName==="barline"&&(c.getAttribute("location")||"right")==="right");
+    if(bl && (bl.getElementsByTagName("bar-style")[0] || bl.getElementsByTagName("repeat")[0])) continue;
+    if(!bl){ bl=doc.createElement("barline"); bl.setAttribute("location","right"); last.append(bl); }
+    const st=doc.createElement("bar-style"); st.textContent="light-heavy"; bl.insertBefore(st, bl.firstChild);
+  }
   return changed;
 }
 function fillEmptyMeasures(xml){
@@ -879,6 +896,7 @@ async function loadScore(src, name, fromSample){
   $("scoreName").textContent=title; $("ovTitleN").textContent=title; document.title="Scrolling Score";
   $("scoreLab").textContent = fromSample ? "Exemplo carregado" : (sh.ComposerString||"Partitura");
   buildInstList();
+  try{ loadMeta(); }catch(e){}
   stop(); pos=0;
   render();
   if(!fromSample){ try{ localStorage.setItem("pr.last", JSON.stringify({kind:"xml"})); }catch(e){} try{ if(typeof src==="string" && src.length<4e6){ localStorage.setItem("pr.score",src); localStorage.setItem("pr.scoreName",name||title);} }catch(e){} }
@@ -1551,7 +1569,42 @@ rng("volA","volA","volAOut",v=>v+"%",applyVolumes);
 rng("volS","volS","volSOut",v=>v+"%",applyVolumes);
 rng("volC","volC","volCOut",v=>v+"%",applyVolumes);
 $("chkHl").checked=S.hl; $("chkHl").onchange=()=>{ S.hl=$("chkHl").checked; save(); if(!S.hl) clearHl(); };
-function applyOv(){ for(const id of ["ovHandle","ovMeas","ovTitle"]) $(id).hidden=!S.ov; $("ovTitleK").textContent=S.ovSub; }
+function applyOv(){ for(const id of ["ovHandle","ovMeas","ovTitle","ovCopy"]) $(id).hidden=!S.ov; $("ovTitleK").textContent=S.ovSub; }
+/* credits: title, subtitle, composer, arranger, copyright; read from the MusicXML, editable, kept per score */
+let META={title:"",subtitle:"",composer:"",arranger:"",rights:""};
+const metaKey=()=>"pr.meta:"+((typeof pdfMode!=="undefined"&&pdfMode&&PDF)?"pdf:"+PDF.key:(scoreName||""));
+function metaFromXml(doc){
+  const m={title:"",subtitle:"",composer:"",arranger:"",rights:""}; if(!doc) return m;
+  const one=t=>String(t||"").replace(/\s*\n\s*/g," ").replace(/\s+/g," ").trim();
+  const q=sel=>{ const e=doc.querySelector(sel); return e?one(e.textContent):""; };
+  const credits=[...doc.getElementsByTagName("credit")].map(c=>({type:one((c.getElementsByTagName("credit-type")[0]||{}).textContent), text:one([...c.getElementsByTagName("credit-words")].map(w=>w.textContent).join(" "))}));
+  const credit=t=>{ const c=credits.find(c=>c.type===t&&c.text); return c?c.text:""; };
+  const creator=t=>q(`identification > creator[type="${t}"]`);
+  const mv=q("movement-title");
+  m.title=q("work > work-title")||credit("title")||mv;
+  m.subtitle=credit("subtitle")||((mv&&mv!==m.title&&!/^flow\s*\d+$/i.test(mv))?mv:"");
+  m.composer=creator("composer")||credit("composer");
+  m.arranger=creator("arranger")||credit("arranger");
+  if(!m.arranger){ const c=credits.find(c=>/\barr(\.|anged|anjo|anjad)/i.test(c.text)); if(c) m.arranger=c.text.replace(/^.*?\barr(\.|anged by|anjo:?|anjado por)\s*(by\s*)?/i,"").trim(); }
+  m.rights=q("identification > rights")||credit("rights");
+  return m;
+}
+function loadMeta(){
+  const auto = xmlDoc ? metaFromXml(xmlDoc) : {title:scoreName||"",subtitle:"",composer:"",arranger:"",rights:""};
+  let saved=null; try{ saved=JSON.parse(localStorage.getItem(metaKey())||"null"); }catch(e){}
+  META=Object.assign({}, auto, saved||{}); renderMeta();
+}
+function saveMeta(){ try{ localStorage.setItem(metaKey(), JSON.stringify(META)); }catch(e){} }
+function renderMeta(){
+  for(const el of document.querySelectorAll("input.meta")) if(document.activeElement!==el) el.value=META[el.dataset.k]||"";
+  const title=META.title||scoreName||"";
+  $("ovTitleN").textContent=title; $("ovTitleS").textContent=META.subtitle||"";
+  $("ovComp").textContent=META.composer?META.composer:""; $("ovArr").textContent=META.arranger?"Arr. "+META.arranger:"";
+  $("ovCopy").textContent=META.rights||"";
+  if(title) $("scoreName").textContent=title;
+}
+for(const el of document.querySelectorAll("input.meta")) el.addEventListener("input",()=>{ META[el.dataset.k]=el.value; saveMeta(); renderMeta(); });
+$("mFromXml").onclick=()=>{ if(!xmlDoc){ toast("Essa partitura não veio de um MusicXML."); return; } META=metaFromXml(xmlDoc); saveMeta(); renderMeta(); toast("Créditos lidos do MusicXML."); };
 $("chkOv").checked=S.ov; $("chkOv").onchange=()=>{ S.ov=$("chkOv").checked; applyOv(); save(); };
 $("ovSub").value=S.ovSub; $("ovSub").oninput=()=>{ S.ovSub=$("ovSub").value.toUpperCase(); applyOv(); save(); };
 
@@ -2154,10 +2207,28 @@ function drawExportFrame(g, L, R, t, opts){
   if(!opts.text || content==="cams") return;
   const mi=measureAt(Math.max(0,t)), mnum=measures[mi]?measures[mi].num:1;
   g.textBaseline="alphabetic";
-  g.fillStyle="#EDEFF2"; g.font="500 26px 'IBM Plex Mono', monospace"; spaced(g,"@O_ZEUFG",L.handle[0],L.handle[1],5);
-  g.fillStyle="#E0A458"; g.font="500 22px 'IBM Plex Mono', monospace"; spaced(g,(S.ovSub||"").toUpperCase(),L.title[0],L.title[1]-(L.W>1500?64:88),4);
-  g.fillStyle="#EDEFF2"; g.font=`900 ${L.W>1500?60:84}px 'Big Shoulders Display', 'Arial Narrow', sans-serif`;
-  fitText(g,(scoreName||"").toUpperCase(),L.title[0],L.title[1],L.W-L.title[0]*2);
+  const wrap=(txt,maxW,maxL)=>{ const out=[]; let cur=""; for(const w of String(txt).split(" ")){ const t=cur?cur+" "+w:w; if(g.measureText(t).width>maxW&&cur){ out.push(cur); cur=w; } else cur=t; } if(cur) out.push(cur); if(out.length>maxL){ out.length=maxL; out[maxL-1]=out[maxL-1].replace(/\s*\S*$/,"")+"…"; } return out; };
+  const credLine=[META.composer, META.arranger?"Arr. "+META.arranger:""].filter(Boolean);
+  const title=(META.title||scoreName||"").toUpperCase(), sub=META.subtitle||"";
+  if(L.W<L.H){ // vertical: one stacked block at the top
+    const x=L.title[0], maxW=L.W-x*2; let y=L.handle[1];
+    g.fillStyle="#E0A458"; g.font="500 22px 'IBM Plex Mono', monospace"; spaced(g,(S.ovSub||"").toUpperCase(),x,y,4); y+=84;
+    g.fillStyle="#EDEFF2"; g.font="900 84px 'Big Shoulders Display', 'Arial Narrow', sans-serif"; fitText(g,title,x,y,maxW); y+=48;
+    if(sub){ g.fillStyle="#B8C0CA"; g.font="italic 400 30px 'IBM Plex Sans', sans-serif"; for(const ln of wrap(sub,maxW,2)){ g.fillText(ln,x,y); y+=38; } }
+    if(credLine.length){ g.fillStyle="#EDEFF2"; g.font="500 24px 'IBM Plex Mono', monospace"; y+=8; spaced(g,credLine.join("  ·  ").toUpperCase(),x,y,3); y+=34; }
+    if(META.rights){ g.fillStyle="rgba(237,239,242,.6)"; g.font="400 18px 'IBM Plex Mono', monospace"; for(const ln of wrap(META.rights,maxW,2)){ g.fillText(ln,x,y); y+=24; } }
+  } else { // horizontal: credits top-left, title bottom-left, copyright bottom-right
+    g.fillStyle="#EDEFF2"; g.font="500 24px 'IBM Plex Mono', monospace";
+    { let y=L.handle[1]; for(const ln of credLine){ spaced(g,ln.toUpperCase(),L.handle[0],y,3); y+=34; } }
+    const subH=sub?40:0, tY=L.title[1]-subH;
+    let cw=0; if(META.rights){ g.font="400 18px 'IBM Plex Mono', monospace"; cw=Math.min(L.W*0.34, g.measureText(META.rights).width); }
+    const maxW=L.W-L.title[0]*2-(cw?cw+48:0);
+    g.fillStyle="#E0A458"; g.font="500 22px 'IBM Plex Mono', monospace"; spaced(g,(S.ovSub||"").toUpperCase(),L.title[0],tY-64,4);
+    g.fillStyle="#EDEFF2"; g.font="900 60px 'Big Shoulders Display', 'Arial Narrow', sans-serif"; fitText(g,title,L.title[0],tY,maxW);
+    if(sub){ g.fillStyle="#B8C0CA"; g.font="italic 400 26px 'IBM Plex Sans', sans-serif"; const ln=wrap(sub,maxW,1)[0]; g.fillText(ln,L.title[0],L.title[1]); }
+    if(META.rights){ g.save(); g.fillStyle="rgba(237,239,242,.6)"; g.font="400 18px 'IBM Plex Mono', monospace"; g.textAlign="right";
+      const lines=wrap(META.rights,L.W*0.34,3); lines.forEach((ln,i)=>g.fillText(ln,L.W-L.title[0],L.title[1]-(lines.length-1-i)*24)); g.restore(); }
+  }
   const drawMeas=(x,y,align)=>{
     g.fillStyle="#9AA3AE"; g.font="500 20px 'IBM Plex Mono', monospace"; spaced(g,"COMPASSO",x,y,4,align);
     g.textAlign=align; g.fillStyle="#E0A458"; g.font="900 110px 'Big Shoulders Display', 'Arial Narrow', sans-serif"; g.fillText(String(mnum),x,y+104);
@@ -3118,6 +3189,7 @@ async function applyPdf(){
   PDF={ name:PW.name, key:PW.key, strip:PW.strip, markers:[...PW.markers], firstNum:PW.firstNum, beats:PW.beats, beatType:PW.beatType, bpm:PW.bpm, spans:{...PW.spans}, anns:(PW.anns=PW.anns||[]) };
   scoreName=PDF.name; loaded=true; xmlDoc=null;
   $("scoreName").textContent=PDF.name; $("ovTitleN").textContent=PDF.name; $("scoreLab").textContent="Partitura em PDF";
+  try{ loadMeta(); }catch(e){}
   $("instList").textContent="";
   $("pdfw").hidden=true;
   try{ localStorage.setItem("pr.last", JSON.stringify({kind:"pdf", key:PW.key})); }catch(e){}
