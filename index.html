@@ -3090,6 +3090,31 @@ async function applyPdf(){
 function inkColor(){ return getComputedStyle(document.documentElement).getPropertyValue("--ink").trim()||"#EDEFF2"; }
 function tint(mask,color,w,h){ const c=document.createElement("canvas"); c.width=Math.max(1,Math.round(w)); c.height=Math.max(1,Math.round(h)); const g=c.getContext("2d"); g.imageSmoothingQuality="high"; g.drawImage(mask,0,0,c.width,c.height); g.globalCompositeOperation="source-in"; g.fillStyle=color; g.fillRect(0,0,c.width,c.height); return c; }
 function pdfDisplayScale(){ const st=PDF.strip, sysH=Math.max(10,st.staffBot-st.staffTop); return (S.zoom/100)*Math.min(2.2,120/sysH)*(stage.clientWidth<600?0.75:1); }
+/* where the music of a bar actually starts: the first note head (or rest) after the bar line, so the reading line
+   reaches each note on the beat instead of lagging behind the empty space after the bar line */
+function firstNoteX(st, x0, x1){
+  const pc=st.pieces.find(p=>x0>=p.x&&x0<p.x+p.w); if(!pc||!pc.lum||!pc.staves.length) return null;
+  const sp=pc.staves[0].sp, w=pc.w, H=st.H, lum=pc.lum, lx0=Math.round(x0-pc.x+0.6*sp), lx1=Math.min(w-1,Math.round(Math.min(x1-pc.x, x0-pc.x+(x1-x0)*0.6)));
+  if(lx1<=lx0) return null;
+  const bw=Math.max(3,Math.round(0.9*sp)), bh=Math.max(2,Math.round(0.55*sp));
+  // column darkness per staff band, ignoring the staff lines themselves
+  const lines=new Set(); for(const s of pc.staves) for(let k=0;k<5;k++){ const yy=Math.round(s.top+(s.bot-s.top)*k/4); for(let d=-1;d<=1;d++) lines.add(yy+d); }
+  for(let x=lx0; x<=lx1-bw; x++){
+    for(const s of pc.staves){
+      const y0=Math.max(0,Math.round(s.top-1.5*sp)), y1=Math.min(H-bh,Math.round(s.bot+1.5*sp));
+      for(let y=y0; y<=y1; y+=Math.max(1,Math.round(sp/4))){
+        let d=0,n=0; for(let yy=y;yy<y+bh;yy++){ if(lines.has(yy)) continue; const row=yy*w; for(let xx=x;xx<x+bw;xx++){ n++; if(lum[row+xx]<DARK) d++; } }
+        if(n && d/n>0.5){
+          // a note head is short: the box above and below it is mostly light (rules out stems, clefs and bar lines)
+          let a=0,an=0; for(let yy=Math.max(0,y-bh);yy<y;yy++){ if(lines.has(yy)) continue; for(let xx=x;xx<x+bw;xx++){ an++; if(lum[yy*w+xx]<DARK) a++; } }
+          let b=0,bn=0; for(let yy=y+bh;yy<Math.min(H,y+2*bh);yy++){ if(lines.has(yy)) continue; for(let xx=x;xx<x+bw;xx++){ bn++; if(lum[yy*w+xx]<DARK) b++; } }
+          if((an?a/an:0)<0.45 || (bn?b/bn:0)<0.45) return pc.x+x;
+        }
+      }
+    }
+  }
+  return null;
+}
 function renderPdf(){
   $("osmd").hidden=true; const ph=$("pdfhost"); ph.hidden=false; host=ph;
   S.mode="horizontal"; stage.classList.add("horizontal"); stage.classList.remove("vertical");
@@ -3105,7 +3130,8 @@ function renderPdf(){
   let bi=0;
   for(let i=0;i<n;i++){
     const pc=pieceAt(mk[i]+1), h=(pc.staffBot-pc.staffTop)*ds+2*pad, span=Math.max(1,+(PDF.spans&&PDF.spans[i]||1)), owner=bi;
-    tl.push({t:bi*spb, x:mk[i]*ds+3, y, h, mi:bi, notes:[]});
+    let ax=null; if(span===1 && S.pdfOnset!==false){ try{ ax=firstNoteX(st, mk[i], mk[i+1]); }catch(e){} }
+    tl.push({t:bi*spb, x:(ax!==null?ax-0.15*st.sp:mk[i])*ds+(ax!==null?0:3), y, h, mi:bi, notes:[]});
     for(let k=0;k<span;k++,bi++) measures.push({num:PDF.firstNum+bi, ts:bi*barW, dur:barW, t0:bi*spb, t1:(bi+1)*spb, bpm:PDF.bpm, sig:PDF.beats+"/"+PDF.beatType, n:PDF.beats, d:PDF.beatType, hasNotes:span===1, gx0:mk[i]*ds, gx1:mk[i+1]*ds, sx:mk[i]*ds, bx1:mk[i+1]*ds, owner, span, y, h});
   }
   const lp=pieceAt(mk[n]-1); tl.push({t:bi*spb, x:mk[n]*ds, y, h:(lp.staffBot-lp.staffTop)*ds+2*pad, mi:Math.max(0,bi-1), notes:[], end:true});
