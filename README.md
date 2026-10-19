@@ -18,6 +18,7 @@ Everything runs in your browser. Your files are never uploaded anywhere.
 - **Two scroll modes:** a continuous horizontal strip with a fixed playhead, or full systems scrolling vertically.
 - **Notes light up** while they sound.
 - **Sync to audio or video** (mp3, wav, m4a, mp4, mov, webm) through sync points. Between two points the score follows the recording's real tempo, including rubato and fermatas.
+- **Automatic sync to the recording:** click **Sincronizar ♩** in the timeline (or Ajustes › Sincronizar pelo áudio) after lining up bar 1. The app finds the beat of the recording and pins every bar to it, so the score follows a live band that speeds up or holds back. For pieces with repeats, set the performance order under **Saltos** first.
 - **Timeline** showing video frames, the audio waveform and the score's bars on one time axis. Drag the score lane to line up the start, and drag any bar line to pin that bar to the right moment.
 - **Tap to sync:** press play and hit `T` on each downbeat.
 - **Multicam (up to 4 cameras):** add videos of the same performance and each one is lined up with the main audio automatically by comparing their sound (about 1 ms precision). Fine-tune by dragging a camera's lane in the timeline. Any camera can provide the main audio.
