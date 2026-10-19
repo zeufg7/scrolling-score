@@ -454,6 +454,13 @@ body.rec .stage{cursor:none}
       <div class="field"><label for="glyph">Tamanho dos símbolos <output id="glyphOut">100%</output></label><input type="range" id="glyph" min="80" max="140" step="5" value="100">
         <p class="hint">Notas, claves, pausas, acidentes e colchetes, sem mudar o tamanho da pauta.</p></div>
       <div class="field"><label for="head">Cabeça das notas <output id="headOut">100%</output></label><input type="range" id="head" min="80" max="140" step="5" value="100"></div>
+      <div class="field"><span class="lbl">Letra</span>
+        <div class="seg" id="segLyric"><button data-v="arial" aria-pressed="true">Arial Bold</button><button data-v="osmd" aria-pressed="false">Padrão</button></div>
+      </div>
+      <div class="field"><span class="lbl">Largura dos compassos</span>
+        <div class="seg" id="segChordSpace"><button data-v="notes" aria-pressed="true">Pelas notas</button><button data-v="stretch" aria-pressed="false">Abrir espaço p/ cifras</button></div>
+        <p class="hint">Pelas notas: cifras longas (Gsus4, Bm7♭5) não alargam o compasso; elas só se afastam um pouco para não encostar.</p>
+      </div>
       <div class="field"><span class="lbl">Cifras</span>
         <div class="seg" id="segChord"><button data-v="arial" aria-pressed="true">Arial Bold</button><button data-v="osmd" aria-pressed="false">Padrão</button></div>
         <p class="hint">Os ♭ e ♯ das cifras e as dinâmicas usam a fonte musical escolhida.</p>
@@ -651,7 +658,7 @@ const audio=$("audio");
 
 /* ---------- settings ---------- */
 const S = { mode:"horizontal", bg:"zeufg", zoom:100, playhead:33, hl:true, ov:true, ovSub:"ANÁLISE DE PARTITURA",
-  offset:0, tl:true, lineH:100, lineW:3, lineY:0, lineX:0, tapEvery:1, vid:"br", vidSize:28, volA:100, volS:60, volC:50, synth:true, click:false, rate:100, loop:false, loopA:1, loopB:4, mfont:"maestro", chord:"arial", head:100, glyph:100 };
+  offset:0, tl:true, lineH:100, lineW:3, lineY:0, lineX:0, tapEvery:1, vid:"br", vidSize:28, volA:100, volS:60, volC:50, synth:true, click:false, rate:100, loop:false, loopA:1, loopB:4, mfont:"maestro", chord:"arial", head:100, glyph:100, chordSpace:"notes", lyricFont:"arial" };
 try { Object.assign(S, JSON.parse(localStorage.getItem("pr.settings")||"{}")); } catch(e){}
 const save = () => { try { localStorage.setItem("pr.settings", JSON.stringify(S)); } catch(e){} };
 
@@ -708,6 +715,23 @@ try{ const P=opensheetmusicdisplay.GraphicalChordSymbolContainer.prototype, orig
   P.calculateLabel=function(...a){ orig.apply(this,a); try{ if(S.chord!=="osmd"){ const L=this.graphicalLabel.Label; L.fontFamily="Arial"; L.fontStyle=opensheetmusicdisplay.FontStyles.Bold; this.graphicalLabel.setLabelPositionAndShapeBorders(); } }catch(e){} };
   osmd.EngravingRules.resetChordAccidentalTexts(osmd.EngravingRules.ChordAccidentalTexts,true);
 }catch(e){ console.warn(e); }
+// bar widths come from the notes: chord symbols may not stretch a bar (they are nudged apart after drawing instead)
+try{ let P=opensheetmusicdisplay.VexFlowMusicSheetCalculator.prototype; while(P && !Object.prototype.hasOwnProperty.call(P,"calculateElongationFactor")) P=Object.getPrototypeOf(P);
+  if(P){ const orig=P.calculateElongationFactor; P.calculateElongationFactor=function(entries,se,dict,w,factor,...rest){ const r=orig.call(this,entries,se,dict,w,factor,...rest); if(S.chordSpace!=="stretch" && entries && entries.length && entries[0] instanceof opensheetmusicdisplay.GraphicalChordSymbolContainer) return factor; return r; }; }
+}catch(e){ console.warn(e); }
+// lyrics in Arial Bold, measured that way too so the spacing fits (lyric labels are recognised by their colour tag)
+const LYR_TAG="#010101";
+try{ osmd.EngravingRules.DefaultColorLyrics=LYR_TAG;
+  const GL=opensheetmusicdisplay.GraphicalLabel.prototype, o2=GL.setLabelPositionAndShapeBorders;
+  GL.setLabelPositionAndShapeBorders=function(...a){ try{ const L=this.Label; if(L && L.colorDefault===LYR_TAG && S.lyricFont!=="osmd"){ L.fontFamily="Arial"; L.fontStyle=opensheetmusicdisplay.FontStyles.Bold; } }catch(e){} return o2.apply(this,a); };
+}catch(e){ console.warn(e); }
+function unclutterChords(){ // keep chord symbols from touching: push a later one right just enough
+  const gs=osmd.GraphicSheet; if(!gs) return; const list=[];
+  for(const row of gs.MeasureList) for(const m of row||[]){ if(!m) continue; for(const se of m.staffEntries||[]) for(const c of (se.graphicalChordContainers||[])){ const l=c.graphicalLabel||c.GraphicalLabel; const g=l&&l.SVGNode; if(!g) continue; g.removeAttribute("transform"); let b; try{ b=g.getBBox(); }catch(e){ continue; } if(b.width) list.push({g,b}); } }
+  list.sort((a,b)=>a.b.x-b.b.x);
+  const rows=[]; for(const it of list){ let r=rows.find(r=>Math.abs(r.y-it.b.y)<it.b.height*0.6); if(!r){ r={y:it.b.y,right:-1e9}; rows.push(r); }
+    const gap=it.b.height*0.35, need=r.right+gap-it.b.x; if(need>0){ it.g.setAttribute("transform",`translate(${need.toFixed(1)},0)`); r.right=it.b.x+need+it.b.width; } else r.right=it.b.x+it.b.width; }
+}
 const ACC_PUA={"♭":"","♮":"","♯":"","𝄪":"","𝄫":""}, DYN_PUA={p:"",m:"",f:"",r:"",s:"",z:"",n:""};
 function styleChord(g){
   const t=g&&(g.tagName==="text"?g:g.querySelector("text")); if(!t||t.dataset.st) return; t.dataset.st="1";
@@ -730,6 +754,7 @@ function styleDynamic(g){
 }
 function styleEngraving(){
   const gs=osmd.GraphicSheet; if(!gs) return;
+  if(S.lyricFont!=="osmd") host.querySelectorAll("svg g.lyrics text").forEach(t=>{ t.setAttribute("font-family","Arial, Helvetica, sans-serif"); t.setAttribute("font-weight","bold"); });
   for(const row of gs.MeasureList) for(const m of row||[]){ if(!m) continue; for(const se of m.staffEntries||[]) for(const c of (se.graphicalChordContainers||[])){ const l=c.graphicalLabel||c.GraphicalLabel; if(l&&l.SVGNode) styleChord(l.SVGNode); } }
   if(S.mfont==="vexflow") return;
   const DynC=opensheetmusicdisplay.VexFlowInstantaneousDynamicExpression;
@@ -771,7 +796,7 @@ function engrave(){
   osmd.render();
   if(!vfFont) vfFont=findVfFont();
   if(vfFont && vfCur!==fontKey()){ setMusicFont(S.mfont); osmd.render(); }
-  styleEngraving(); drawBrackets();
+  styleEngraving(); if(S.chordSpace!=="stretch") unclutterChords(); drawBrackets();
 }
 let scoreSrc=null, scoreName="", loaded=false;
 let tl=[];        // timeline entries: {t, x, y, h, m, notes:[...]}
@@ -1509,6 +1534,8 @@ function seg(id,key,after){
 seg("segMode","mode",()=>{ dragX=null; render(); });
 seg("segBg","bg",applyBg);
 seg("segChord","chord",()=>render());
+seg("segChordSpace","chordSpace",()=>render());
+seg("segLyric","lyricFont",()=>render());
 let rh; rng("head","head","headOut",v=>v+"%",()=>{ clearTimeout(rh); rh=setTimeout(render,200); });
 rng("glyph","glyph","glyphOut",v=>v+"%",()=>{ clearTimeout(rh); rh=setTimeout(render,200); });
 $("mfont").value=S.mfont; $("mfont").addEventListener("change",()=>{ S.mfont=$("mfont").value; save(); render(); });
