@@ -460,6 +460,14 @@ body.rec .stage{cursor:none}
       <div class="field"><span class="lbl">Letra</span>
         <div class="seg" id="segLyric"><button data-v="arial" aria-pressed="true">Arial Bold</button><button data-v="osmd" aria-pressed="false">Padrão</button></div>
       </div>
+      <div class="field"><span class="lbl">Pautas vazias</span>
+        <div class="seg" id="segEmpty"><button data-v="show" aria-pressed="true">Mostrar</button><button data-v="hide" aria-pressed="false">Esconder</button></div>
+        <p class="hint">Esconder: só aparecem as pautas que estão tocando naquele trecho. Quando um instrumento ou voz volta a ter notas, a pauta reaparece (um pouco antes da entrada).</p>
+      </div>
+      <div class="field"><span class="lbl">Pausas das vozes 2, 3 e 4</span>
+        <div class="seg" id="segVRest"><button data-v="show" aria-pressed="false">Mostrar</button><button data-v="hide" aria-pressed="true">Esconder</button></div>
+        <p class="hint">No modo Editar, selecione qualquer pausa e aperte Delete para escondê-la.</p>
+      </div>
       <div class="field"><span class="lbl">Largura dos compassos</span>
         <div class="seg" id="segChordSpace"><button data-v="notes" aria-pressed="true">Pelas notas</button><button data-v="stretch" aria-pressed="false">Abrir espaço p/ cifras</button></div>
         <p class="hint">Pelas notas: cifras longas (Gsus4, Bm7♭5) não alargam o compasso; elas só se afastam um pouco para não encostar.</p>
@@ -668,7 +676,7 @@ const audio=$("audio");
 
 /* ---------- settings ---------- */
 const S = { mode:"horizontal", bg:"zeufg", zoom:100, playhead:33, hl:true, ov:true, ovSub:"ANÁLISE DE PARTITURA",
-  offset:0, tl:true, lineH:100, lineW:3, lineY:0, lineX:0, tapEvery:1, vid:"br", vidSize:28, volA:100, volS:60, volC:50, synth:true, click:false, rate:100, loop:false, loopA:1, loopB:4, mfont:"maestro", chord:"arial", head:100, glyph:100, chordSpace:"notes", lyricFont:"arial" };
+  offset:0, tl:true, lineH:100, lineW:3, lineY:0, lineX:0, tapEvery:1, vid:"br", vidSize:28, volA:100, volS:60, volC:50, synth:true, click:false, rate:100, loop:false, loopA:1, loopB:4, hideEmpty:false, hideVoiceRests:true, mfont:"maestro", chord:"arial", head:100, glyph:100, chordSpace:"notes", lyricFont:"arial" };
 try { Object.assign(S, JSON.parse(localStorage.getItem("pr.settings")||"{}")); } catch(e){}
 const save = () => { try { localStorage.setItem("pr.settings", JSON.stringify(S)); } catch(e){} };
 
@@ -764,6 +772,8 @@ function styleDynamic(g){
 }
 function styleEngraving(){
   const gs=osmd.GraphicSheet; if(!gs) return;
+  // notes and rests marked print-object="no" (hidden voice rests): the engraver still draws some of them
+  for(const row of gs.MeasureList) for(const m of row||[]){ if(!m) continue; for(const se of m.staffEntries||[]) for(const ve of se.graphicalVoiceEntries||[]) for(const n of ve.notes||[]){ if(n.sourceNote && n.sourceNote.PrintObject===false){ let g=null; try{ g=n.getSVGGElement&&n.getSVGGElement(); }catch(e){} if(!g && ve.vfStaveNote && ve.vfStaveNote.attrs) g=document.getElementById("vf-"+ve.vfStaveNote.attrs.id); if(g){ g.setAttribute("visibility","hidden"); g.setAttribute("display","none"); g.style.display="none"; } } } }
   if(S.lyricFont!=="osmd") host.querySelectorAll("svg g.lyrics text").forEach(t=>{ t.setAttribute("font-family","Arial, Helvetica, sans-serif"); t.setAttribute("font-weight","bold"); });
   for(const row of gs.MeasureList) for(const m of row||[]){ if(!m) continue; for(const se of m.staffEntries||[]) for(const c of (se.graphicalChordContainers||[])){ const l=c.graphicalLabel||c.GraphicalLabel; if(l&&l.SVGNode) styleChord(l.SVGNode); } }
   if(S.mfont==="vexflow") return;
@@ -851,6 +861,18 @@ function prepareDoc(doc){
       changed++;
     }
   }
+  // rests of the 2nd, 3rd and 4th voice of a staff can be hidden (they clutter lead sheets and choir parts)
+  for(const part of parts){
+    const prim=new Map();
+    for(const n of part.getElementsByTagName("note")){ const v=+((n.getElementsByTagName("voice")[0]||{}).textContent||1), st=+((n.getElementsByTagName("staff")[0]||{}).textContent||1); if(!prim.has(st)||v<prim.get(st)) prim.set(st,v); }
+    for(const n of part.getElementsByTagName("note")){
+      if(!n.getElementsByTagName("rest")[0]) continue;
+      const v=+((n.getElementsByTagName("voice")[0]||{}).textContent||1), st=+((n.getElementsByTagName("staff")[0]||{}).textContent||1);
+      const second = v!==prim.get(st);
+      if(S.hideVoiceRests!==false && second){ if(n.getAttribute("print-object")!=="no"){ n.setAttribute("print-object","no"); n.setAttribute("data-prh","1"); } }
+      else if(n.getAttribute("data-prh")){ n.removeAttribute("print-object"); n.removeAttribute("data-prh"); }
+    }
+  }
   // a piece ends with a final bar line (Dorico leaves it implicit when the last bar carries an ending bracket)
   for(const part of parts){
     const ms=part.getElementsByTagName("measure"), last=ms[ms.length-1]; if(!last) continue;
@@ -927,7 +949,7 @@ function render(){
   stage.classList.toggle("horizontal",horiz); stage.classList.toggle("vertical",!horiz);
   host.style.width = horiz ? "" : (stage.clientWidth)+"px";
   osmd.zoom = S.zoom/100 * (stage.clientWidth<600?0.75:1);
-  return new Promise(res=>requestAnimationFrame(()=>{ try{ engrave(); buildTimeline(); afterRender(); }catch(e){ console.error(e); toast("A partitura não pôde ser desenhada com essas opções."); }
+  return new Promise(res=>requestAnimationFrame(()=>{ try{ for(const o of VAR.list){ for(const b of o.backends||[]) b.__keep=false; if(o.node.parentNode===host) o.node.remove(); } VAR.on=false; VAR.list=[]; engrave(); buildTimeline(); prepareVariants(); afterRender(); }catch(e){ console.error(e); toast("A partitura não pôde ser desenhada com essas opções."); }
     $("loading").hidden=true; lastIdx=-1; clearHl(); seekTo(pos,true); res(); }));
 }
 
@@ -1156,6 +1178,61 @@ async function prepareHeaderImages(scale){
   }
 }
 
+
+/* ---------- hide empty staves: one engraving per set of playing instruments, swapped as the music moves ---------- */
+const VAR={on:false, list:[], byPerf:[], cur:-1};
+try{ const B=opensheetmusicdisplay.SvgVexFlowBackend.prototype, oc=B.clear; B.clear=function(...a){ if(this.__keep) return; return oc.apply(this,a); }; }catch(e){}
+function playingByMeasure(){ // instrument index -> Set of written bars where it has notes
+  const sh=osmd.Sheet, out=sh.Instruments.map(()=>new Set());
+  sh.SourceMeasures.forEach((sm,mi)=>{ for(const c of sm.VerticalSourceStaffEntryContainers||[]) (c.StaffEntries||[]).forEach(se=>{ if(!se) return; const ins=se.ParentStaff&&se.ParentStaff.ParentInstrument; const ii=sh.Instruments.indexOf(ins); if(ii<0) return;
+      for(const ve of se.VoiceEntries||[]) for(const n of ve.Notes||[]) if(!(n.isRest&&n.isRest()) && n.PrintObject!==false){ out[ii].add(mi); return; } }); });
+  return out;
+}
+function snapVariant(){
+  const box=$("sticky");
+  const svg=host.querySelector("svg"); const node=svg&&svg.parentNode!==host?svg.parentNode:svg;
+  return { svg, node, srcM, srcTl, srcNotes, stickyX, HDR, sticky:[...box.childNodes], stTop:box.style.top, stPad:box.style.paddingTop };
+}
+function switchVariant(k){
+  const v=VAR.list[k]; if(!v) return;
+  for(const o of VAR.list) if(o!==v && o.node.parentNode===host) o.node.remove();
+  if(v.node.parentNode!==host) host.insertBefore(v.node, host.firstChild);
+  srcM=v.srcM; srcTl=v.srcTl; srcNotes=v.srcNotes; stickyX=v.stickyX; HDR=v.HDR; hdrCurKey="";
+  const box=$("sticky"); box.textContent=""; box.append(...v.sticky); box.style.top=v.stTop; box.style.paddingTop=box.style.paddingBottom=v.stPad;
+  clearHl(); unrollCore(JM.perf); lastIdx=-1; VAR.cur=k; try{ drawJumpMarks(); }catch(e){}
+}
+function prepareVariants(){
+  if(!S.hideEmpty || editMode || pdfMode || S.mode!=="horizontal" || !osmd.Sheet) return;
+  const sh=osmd.Sheet, base=sh.Instruments.map(i=>i.Visible!==false), nI=base.length;
+  if(base.filter(Boolean).length<2) return;
+  const play=playingByMeasure(), P=measures.length; if(!P) return;
+  // which instruments to show at each played bar: notes from one bar back to two bars ahead
+  let sets=measures.map((m,i)=>{ const set=base.map((b,ii)=>{ if(!b) return false; for(let j=Math.max(0,i-1);j<=Math.min(P-1,i+2);j++) if(play[ii].has(measures[j].src)) return true; return false; }); return set; });
+  for(let i=0;i<P;i++) if(!sets[i].some(Boolean)) sets[i]= i? sets[i-1].slice() : base.slice();
+  // no section shorter than four bars: fold short ones into their neighbour
+  const key=a=>a.map(b=>b?1:0).join("");
+  for(let pass=0;pass<6;pass++){ let changed=false, i=0;
+    while(i<P){ let j=i; while(j+1<P && key(sets[j+1])===key(sets[i])) j++;
+      if(j-i+1<4){ const nb=i>0?sets[i-1]:(j+1<P?sets[j+1]:null); if(nb){ const u=sets[i].map((b,ii)=>b||nb[ii]); for(let k=i;k<=j;k++) sets[k]=u.slice(); if(i>0) for(let k=i-1;k>=0&&key(sets[k])===key(nb);k--) sets[k]=u.slice(); else for(let k=j+1;k<P&&key(sets[k])===key(nb);k++) sets[k]=u.slice(); changed=true; } }
+      i=j+1; }
+    if(!changed) break; }
+  const keys=[...new Set(sets.map(key))]; if(keys.length<2 && keys[0]===key(base)) return;
+  const posNow=pos, list=[];
+  try{
+    for(const k of keys){
+      sh.Instruments.forEach((ins,ii)=>ins.Visible=k[ii]==="1");
+      engrave(); buildTimeline();
+      const v=snapVariant(); v.key=k;
+      // keep a copy of the drawing (the engraver wipes its own on the next pass) and point the notes at the copy
+      const all=[...v.node.querySelectorAll("*")], at=new Map(all.map((e,i)=>[e,i])), cl=v.node.cloneNode(true), call=[...cl.querySelectorAll("*")];
+      v.srcNotes=srcNotes.map(n=>{ const i=n.els?at.get(n.els):undefined; return i===undefined?n:Object.assign(n,{els:call[i]}); });
+      v.node.remove(); v.node=cl; v.svg=cl.tagName==="svg"?cl:cl.querySelector("svg"); list.push(v);
+    }
+  } finally { sh.Instruments.forEach((ins,ii)=>ins.Visible=base[ii]); }
+  VAR.list=list; VAR.byPerf=sets.map(a=>keys.indexOf(key(a))); VAR.on=true; VAR.cur=-1;
+  pos=posNow; switchVariant(VAR.byPerf[Math.max(0,Math.min(P-1,measureAt(Math.max(0,pos))))]||0);
+}
+
 /* ---------- time helpers ---------- */
 function idxAt(t){ let lo=0, hi=tl.length-1; if(hi<0) return -1; if(t<tl[0].t) return 0; while(lo<hi){ const mid=(lo+hi+1)>>1; if(tl[mid].t<=t) lo=mid; else hi=mid-1; } return lo; }
 function measureAt(t){ let lo=0, hi=measures.length-1; while(lo<hi){ const mid=(lo+hi+1)>>1; if(measures[mid].t0<=t+1e-6) lo=mid; else hi=mid-1; } return lo; }
@@ -1358,6 +1435,7 @@ function frame(force){
     pos=t;
     schedule(t);
   }
+  if(VAR.on){ const k=VAR.byPerf[measureAt(Math.max(0,t))]; if(k!==undefined && k!==VAR.cur) switchVariant(k); }
   const p=posAt(t);
   const W=stage.clientWidth, H=stage.clientHeight;
   if(S.mode==="horizontal"){
@@ -1555,6 +1633,8 @@ seg("segBg","bg",applyBg);
 seg("segChord","chord",()=>render());
 seg("segChordSpace","chordSpace",()=>render());
 seg("segLyric","lyricFont",()=>render());
+S.emptyStaves=S.hideEmpty?"hide":"show"; seg("segEmpty","emptyStaves",()=>{ S.hideEmpty=S.emptyStaves==="hide"; save(); render(); });
+S.vRest=S.hideVoiceRests===false?"show":"hide"; seg("segVRest","vRest",async()=>{ S.hideVoiceRests=S.vRest==="hide"; save(); if(xmlDoc&&!pdfMode) await reloadQuiet(); });
 let rh; rng("head","head","headOut",v=>v+"%",()=>{ clearTimeout(rh); rh=setTimeout(render,200); });
 rng("glyph","glyph","glyphOut",v=>v+"%",()=>{ clearTimeout(rh); rh=setTimeout(render,200); });
 $("mfont").value=S.mfont; $("mfont").addEventListener("change",()=>{ S.mfont=$("mfont").value; save(); render(); });
@@ -2134,7 +2214,7 @@ async function rasterScore(scale){
     tiles.push({x, w:tw, ink:mk(imI), amber:mk(imA)});
   }
   const hr=host.getBoundingClientRect();
-  for(const n of notes){ if(n.els){ const r=n.els.getBoundingClientRect(); n.bb={x:r.left-hr.left, y:r.top-hr.top, w:r.width, h:r.height}; } }
+  for(const list of [srcNotes,notes]) for(const n of list){ if(n.els){ const r=n.els.getBoundingClientRect(); n.bb={x:r.left-hr.left, y:r.top-hr.top, w:r.width, h:r.height}; } }
   const sr=svg.getBoundingClientRect();
   try{ await prepareHeaderImages(scale); }catch(e){ console.warn(e); }
   return { tiles, w:outW, h:outH, scale, ox:(sr.left-hr.left)*scale, oy:(sr.top-hr.top)*scale };
@@ -2152,6 +2232,7 @@ function coverDraw(g, v, x, y, w, h){
 }
 
 function drawExportFrame(g, L, R, t, opts){
+  if(VAR.on && XP && XP.Rv){ const k=VAR.byPerf[measureAt(Math.max(0,t))]; if(k!==undefined){ if(k!==VAR.cur) switchVariant(k); R=XP.Rv[k]||R; } }
   const st=getComputedStyle(document.documentElement);
   const stageC=st.getPropertyValue("--stage").trim()||"#0D1015";
   const content=opts.content||"all";
@@ -2311,7 +2392,10 @@ function xpScale(){ return Math.min(4, (XP.L.baseBandH*0.86)/XP.sysH) * xpParams
 let rasterT=null;
 function xpRaster(now){
   clearTimeout(rasterT);
-  const go=async()=>{ const sc=xpScale(); if(XP.R && Math.abs(XP.R.scale-sc)<1e-3) return; const key=++XP.rk; try{ const R=await rasterScore(sc); if(key===XP.rk && XP) XP.R=R; }catch(e){ console.error(e); } };
+  const go=async()=>{ const sc=xpScale(); if(XP.R && Math.abs(XP.R.scale-sc)<1e-3) return; const key=++XP.rk; try{
+      if(VAR.on){ const cur=VAR.cur, Rv=[]; for(let k=0;k<VAR.list.length;k++){ switchVariant(k); Rv[k]=await rasterScore(sc); } switchVariant(cur); if(key===XP.rk && XP){ XP.Rv=Rv; XP.R=Rv[cur]; } }
+      else { const R=await rasterScore(sc); if(key===XP.rk && XP){ XP.R=R; XP.Rv=null; } }
+    }catch(e){ console.error(e); } };
   if(now) return go(); rasterT=setTimeout(go,220);
 }
 function syncXpControls(){
@@ -2339,6 +2423,7 @@ async function openExport(){
   if(S.mode!=="horizontal"){ S.mode="horizontal"; await render(); }
   await Promise.all([document.fonts.load("900 80px 'Big Shoulders Display'"), document.fonts.load("500 20px 'IBM Plex Mono'")]).catch(()=>{});
   XP.sysH=(Math.max(...tl.map(e=>e.y+e.h))-Math.min(...tl.map(e=>e.y)))||120;
+  if(VAR.on) XP.sysH=Math.max(XP.sysH, ...VAR.list.map(v=>{ const ys=v.srcTl.filter(e=>!e.end); return ys.length?Math.max(...ys.map(e=>e.y+e.h))-Math.min(...ys.map(e=>e.y)):0; }));
   if(cams.length){ S.xl=S.xl||{}; if(!S.xl[xFmt]) S.xl[xFmt]={on:true,preset:"grid",items:{}}; }
   syncXpControls(); xpLayout(); await xpRaster(true);
   const [lo,hi]=timeRange(); $("xpSeek").min=Math.floor(lo*100); $("xpSeek").max=Math.ceil(hi*100);
@@ -2805,6 +2890,13 @@ async function edit(fn){
   undoStack.push(before); if(undoStack.length>80) undoStack.shift(); redoStack=[];
   await reloadFromDoc();
 }
+async function reloadQuiet(){ // re-read the document after a display option changed (not an edit)
+  prepareDoc(xmlDoc);
+  const vis=osmd.Sheet?osmd.Sheet.Instruments.map(i=>i.Visible):[];
+  await osmd.load(new XMLSerializer().serializeToString(xmlDoc));
+  osmd.Sheet.Instruments.forEach((ins,i)=>{ if(vis[i]===false) ins.Visible=false; });
+  await render();
+}
 async function reloadFromDoc(){
   editing=true; edited=true;
   try{
@@ -2824,7 +2916,8 @@ function afterRender(){ try{ buildItems(); }catch(e){ console.error(e); items=[]
 
 async function saveXml(){
   if(!xmlDoc){ toast("Nada para salvar."); return; }
-  const str='<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n'+new XMLSerializer().serializeToString(xmlDoc.documentElement);
+  const cl=xmlDoc.documentElement.cloneNode(true); cl.querySelectorAll("[data-prh]").forEach(n=>n.removeAttribute("data-prh"));
+  const str='<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n'+new XMLSerializer().serializeToString(cl);
   const base=(scoreName||"partitura").replace(/[\\/:*?"<>|]+/g,"")+" (editado)";
   if(dlNS){
     try{ await dlNS.save({filename:base+".musicxml", data:str}); $("eSave").classList.remove("dirty"); toast("MusicXML salvo."); return; }
@@ -2841,7 +2934,9 @@ function setEdit(on){
   if(pdfMode){ pdfEdit(on); return; }
   if(PA.on) pdfEdit(false);
   if(on&&!xmlDoc){ toast("Abra uma partitura MusicXML para editar."); return; }
+  const varWas=VAR.on||(!on&&S.hideEmpty);
   editMode=on; stage.classList.toggle("editing",on); $("ebar").hidden=!on; $("btnEdit").classList.toggle("on",on);
+  if(varWas && S.hideEmpty && !pdfMode){ render(); }
   if(on){ requestAnimationFrame(()=>{ frame(true); buildItems(); renderEbar(); }); } else { setSel(null); }
   requestAnimationFrame(()=>frame(true));
 }
@@ -2868,7 +2963,7 @@ function editKeys(e){
   if(!sel.pel && e.key==="ArrowRight"){ e.preventDefault(); neighbor(1); return true; }
   if(sel.kind==="note"&&(e.key==="ArrowUp"||e.key==="ArrowDown")){ e.preventDefault(); const d=(e.key==="ArrowUp"?1:-1)*((mod||e.shiftKey)?12:1); edit(()=>shiftPitch(n,d)); return true; }
   if(sel.pel && ["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key)){ e.preventDefault(); const st=e.shiftKey?10:1, it=sel; const d={ArrowUp:[0,-st],ArrowDown:[0,st],ArrowLeft:[-st,0],ArrowRight:[st,0]}[e.key]; lightEdit(()=>nudge(it,d[0],d[1])); return true; }
-  if(e.key==="Delete"||e.key==="Backspace"){ e.preventDefault(); if(sel.kind==="note") edit(()=>toRest(n)); else if(sel.kind==="dyn"||sel.kind==="words") edit(()=>removeDT(sel.xd.dt)); else if(sel.kind==="wedge") edit(()=>removeWedge(sel.xd)); else if(sel.kind==="slur") edit(()=>removeSlur(sel)); return true; }
+  if(e.key==="Delete"||e.key==="Backspace"){ e.preventDefault(); if(sel.kind==="note") edit(()=>toRest(n)); else if(sel.kind==="rest") edit(()=>{ n.setAttribute("print-object","no"); }); else if(sel.kind==="dyn"||sel.kind==="words") edit(()=>removeDT(sel.xd.dt)); else if(sel.kind==="wedge") edit(()=>removeWedge(sel.xd)); else if(sel.kind==="slur") edit(()=>removeSlur(sel)); return true; }
   if(n && "34567".includes(e.key) && !mod){ const t={"7":"whole","6":"half","5":"quarter","4":"eighth","3":"16th"}[e.key]; edit(()=>setDuration(n,t,false)); return true; }
   if(n && e.key==="."){ edit(()=>setDuration(n,noteType(n)||"quarter",!kid(n,"dot"))); return true; }
   return false;
@@ -3446,6 +3541,14 @@ function perfList(){
 }
 function unroll(first){
   const list=perfList(); JM.perf=list;
+  unrollCore(list);
+  loadSync(); updateSeekRange(); if(first) tlFit(); drawTicks();
+  S.loopA=Math.min(Math.max(1,S.loopA),measures.length); S.loopB=Math.min(Math.max(S.loopA,S.loopB),measures.length);
+  $("loopA").max=$("loopB").max=measures.length; syncLoopUI();
+  if(!first){ lastIdx=-1; lastMeasure=-1; clearHl(); seekTo(Math.min(pos,total),true); }
+  renderJumpUI(); TL.dirty=true;
+}
+function unrollCore(list){
   const byBar=new Map(); for(const e of srcTl){ if(!byBar.has(e.mi)) byBar.set(e.mi,[]); byBar.get(e.mi).push(e); }
   const nByBar=new Map(); for(const n of srcNotes){ if(!nByBar.has(n.mi)) nByBar.set(n.mi,[]); nByBar.get(n.mi).push(n); }
   const occ=new Map();
@@ -3472,11 +3575,6 @@ function unroll(first){
   notes.sort((a,b)=>a.t0-b.t0);
   beats=[];
   for(const m of measures){ const compound=m.d===8&&m.n%3===0&&m.n>3; const step=(compound?3:1)/m.d; const k=Math.max(1,Math.round(m.dur/step)); for(let i=0;i<k;i++) beats.push({t:m.t0+i*step*240/m.bpm, down:i===0}); }
-  loadSync(); updateSeekRange(); if(first) tlFit(); drawTicks();
-  S.loopA=Math.min(Math.max(1,S.loopA),measures.length); S.loopB=Math.min(Math.max(S.loopA,S.loopB),measures.length);
-  $("loopA").max=$("loopB").max=measures.length; syncLoopUI();
-  if(!first){ lastIdx=-1; lastMeasure=-1; clearHl(); seekTo(Math.min(pos,total),true); }
-  renderJumpUI(); TL.dirty=true;
 }
 function perfOf(src){ let best=-1, bd=Infinity; const now=clockNow(); measures.forEach((m,i)=>{ if(m.src!==src) return; const d=Math.abs(m.t0-now); if(d<bd){ bd=d; best=i; } }); return best<0?Math.min(src,measures.length-1):best; }
 
