@@ -1061,12 +1061,15 @@ function unitPx(){ // pixels per engraving unit, read from the rendered SVG
   const vb=svg.viewBox&&svg.viewBox.baseVal; const w=svg.getBoundingClientRect().width;
   return (vb&&vb.width&&w) ? 10*w/vb.width : 10*(osmd.zoom||1);
 }
+// first bar of the row that is actually drawn (hidden staves keep an undrawn placeholder at x=0)
+function drawnMeasure(row){ if(!row) return null;
+  return row.find(z=>z && z.ParentStaffLine && !(z.ParentStaff&&z.ParentStaff.ParentInstrument&&z.ParentStaff.ParentInstrument.Visible===false)) || row.find(z=>z && z.ParentStaffLine) || row.find(z=>z); }
 function measureBoxes(){
   const gs=osmd.GraphicSheet; if(!gs) return;
   const u=unitPx(), so=svgOffset(); let owner=-1;
   const svgEl=host.querySelector("svg"), vb=svgEl&&svgEl.viewBox&&svgEl.viewBox.baseVal, sc=(vb&&vb.width)?svgEl.getBoundingClientRect().width/vb.width:u/10;
   measures.forEach((m,i)=>{
-    const row=gs.MeasureList[i]; const g=row&&row.find(z=>z);
+    const row=gs.MeasureList[i]; const g=drawnMeasure(row);
     const st=g&&g.getVFStave?(()=>{ try{ return g.getVFStave(); }catch(e){ return null; } })():null;
     if(st&&st.getNoteStartX){ m.gx0=so.x+st.getNoteStartX()*sc; m.gx1=so.x+st.getNoteEndX()*sc; m.sx=so.x+st.getX()*sc; m.bx1=so.x+(st.getX()+st.getWidth())*sc; owner=i; m.owner=i; }
     else if(g&&g.PositionAndShape){ const ps=g.PositionAndShape, ax=ps.AbsolutePosition.x;
@@ -1076,7 +1079,7 @@ function measureBoxes(){
   measures.forEach((m,i)=>{ if(m.owner===i){ let n=1; while(measures[i+n]&&measures[i+n].owner===i) n++; m.span=n; } });
   // sticky header: clef, key and time signature of the first bar
   stickyX=null; HDR=null; const box=$("sticky"); box.textContent=""; box.hidden=true;
-  const svg=host.querySelector("svg"), row=gs.MeasureList[0], g=row&&row.find(z=>z);
+  const svg=host.querySelector("svg"), row=gs.MeasureList[0], g=drawnMeasure(row);
   if(S.mode!=="horizontal"||!svg||!g) return;
   const ax=g.PositionAndShape.AbsolutePosition.x;
   const m0=measures[0]; let x0=Math.max(0,(m0.sx!==undefined?m0.sx-so.x:ax*u)-2.4*u);
