@@ -460,6 +460,11 @@ body.rec .stage{cursor:none}
       <div class="field"><span class="lbl">Letra</span>
         <div class="seg" id="segLyric"><button data-v="arial" aria-pressed="true">Arial Bold</button><button data-v="osmd" aria-pressed="false">Padrão</button></div>
       </div>
+      <div class="field"><span class="lbl">Hífens e linhas de prolongamento da letra</span>
+        <div class="seg" id="segLyrLines"><button data-v="show" aria-pressed="false">Mostrar</button><button data-v="hide" aria-pressed="true">Esconder</button></div>
+      </div>
+      <div class="field"><label for="noteSpace">Espaço entre as notas <output id="noteSpaceOut">100%</output></label><input type="range" id="noteSpace" min="70" max="220" step="5" value="100">
+        <p class="hint">Se sílabas da letra encostarem umas nas outras, aumente. Os compassos alargam proporcionalmente.</p></div>
       <div class="field"><span class="lbl">Pautas vazias</span>
         <div class="seg" id="segEmpty"><button data-v="show" aria-pressed="true">Mostrar</button><button data-v="hide" aria-pressed="false">Esconder</button></div>
         <p class="hint">Esconder: só aparecem as pautas que estão tocando naquele trecho. Quando um instrumento ou voz volta a ter notas, a pauta reaparece (um pouco antes da entrada).</p>
@@ -676,7 +681,7 @@ const audio=$("audio");
 
 /* ---------- settings ---------- */
 const S = { mode:"horizontal", bg:"zeufg", zoom:100, playhead:33, hl:true, ov:true, ovSub:"ANÁLISE DE PARTITURA",
-  offset:0, tl:true, lineH:100, lineW:3, lineY:0, lineX:0, tapEvery:1, vid:"br", vidSize:28, volA:100, volS:60, volC:50, synth:true, click:false, rate:100, loop:false, loopA:1, loopB:4, hideEmpty:false, hideVoiceRests:true, mfont:"maestro", chord:"arial", head:100, glyph:100, chordSpace:"notes", lyricFont:"arial" };
+  offset:0, tl:true, lineH:100, lineW:3, lineY:0, lineX:0, tapEvery:1, vid:"br", vidSize:28, volA:100, volS:60, volC:50, synth:true, click:false, rate:100, loop:false, loopA:1, loopB:4, hideEmpty:false, hideVoiceRests:true, mfont:"maestro", chord:"arial", head:100, glyph:100, chordSpace:"notes", lyricFont:"arial", lyricLines:"hide", noteSpace:100 };
 try { Object.assign(S, JSON.parse(localStorage.getItem("pr.settings")||"{}")); } catch(e){}
 const save = () => { try { localStorage.setItem("pr.settings", JSON.stringify(S)); } catch(e){} };
 
@@ -739,10 +744,21 @@ try{ let P=opensheetmusicdisplay.VexFlowMusicSheetCalculator.prototype; while(P 
 }catch(e){ console.warn(e); }
 // lyrics in Arial Bold, measured that way too so the spacing fits (lyric labels are recognised by their colour tag)
 const LYR_TAG="#010101";
+try{ let D=opensheetmusicdisplay.VexFlowMusicSheetDrawer.prototype; const own=(P,k)=>{ while(P && !Object.prototype.hasOwnProperty.call(P,k)) P=Object.getPrototypeOf(P); return P; };
+  const PL=own(D,"drawLyricLines"); if(PL){ const o=PL.drawLyricLines; PL.drawLyricLines=function(...a){ if(S.lyricLines==="hide") return; return o.apply(this,a); }; }
+  const PD=own(D,"drawDashes"); if(PD){ const o=PD.drawDashes; PD.drawDashes=function(...a){ if(S.lyricLines==="hide") return; return o.apply(this,a); }; }
+}catch(e){ console.warn(e); }
 try{ osmd.EngravingRules.DefaultColorLyrics=LYR_TAG;
   const GL=opensheetmusicdisplay.GraphicalLabel.prototype, o2=GL.setLabelPositionAndShapeBorders;
   GL.setLabelPositionAndShapeBorders=function(...a){ try{ const L=this.Label; if(L && L.colorDefault===LYR_TAG && S.lyricFont!=="osmd"){ L.fontFamily="Arial"; L.fontStyle=opensheetmusicdisplay.FontStyles.Bold; } }catch(e){} return o2.apply(this,a); };
 }catch(e){ console.warn(e); }
+function unclutterLyrics(){ // syllables that still touch after spacing: push the later one right just enough
+  const svg=host.querySelector("svg"); if(!svg) return; const list=[];
+  for(const g of svg.querySelectorAll("g.lyrics")){ g.removeAttribute("transform"); let b; try{ b=g.getBBox(); }catch(e){ continue; } if(b.width) list.push({g,b}); }
+  list.sort((a,b)=>a.b.x-b.b.x);
+  const rows=[]; for(const it of list){ let r=rows.find(r=>Math.abs(r.y-it.b.y)<it.b.height*0.5); if(!r){ r={y:it.b.y,right:-1e9}; rows.push(r); }
+    const gap=it.b.height*0.3, need=r.right+gap-it.b.x; if(need>0){ it.g.setAttribute("transform",`translate(${need.toFixed(1)},0)`); r.right=it.b.x+need+it.b.width; } else r.right=it.b.x+it.b.width; }
+}
 function unclutterChords(){ // keep chord symbols from touching: push a later one right just enough
   const gs=osmd.GraphicSheet; if(!gs) return; const list=[];
   for(const row of gs.MeasureList) for(const m of row||[]){ if(!m) continue; for(const se of m.staffEntries||[]) for(const c of (se.graphicalChordContainers||[])){ const l=c.graphicalLabel||c.GraphicalLabel; const g=l&&l.SVGNode; if(!g) continue; g.removeAttribute("transform"); let b; try{ b=g.getBBox(); }catch(e){ continue; } if(b.width) list.push({g,b}); } }
@@ -813,10 +829,13 @@ function drawBrackets(){
 }
 /* render with the chosen music font: the glyph table is found after the first drawing, then swapped */
 function engrave(){
+  try{ const f=(S.noteSpace||100)/100, R=osmd.EngravingRules; R.VoiceSpacingMultiplierVexflow=0.85*f; R.VoiceSpacingAddendVexflow=3*f;
+    // let a bar grow as much as its lyrics need, with a little air between words
+    R.MaximumLyricsElongationFactor=3; R.HorizontalBetweenLyricsDistance=0.45; R.LyricOverlapAllowedIntoNextMeasure=1; }catch(e){}
   osmd.render();
   if(!vfFont) vfFont=findVfFont();
   if(vfFont && vfCur!==fontKey()){ setMusicFont(S.mfont); osmd.render(); }
-  styleEngraving(); if(S.chordSpace!=="stretch") unclutterChords(); drawBrackets();
+  styleEngraving(); if(S.chordSpace!=="stretch") unclutterChords(); unclutterLyrics(); drawBrackets();
 }
 let scoreSrc=null, scoreName="", loaded=false;
 let tl=[];        // timeline entries: {t, x, y, h, m, notes:[...]}
@@ -872,6 +891,13 @@ function prepareDoc(doc){
       if(S.hideVoiceRests!==false && second){ if(n.getAttribute("print-object")!=="no"){ n.setAttribute("print-object","no"); n.setAttribute("data-prh","1"); } }
       else if(n.getAttribute("data-prh")){ n.removeAttribute("print-object"); n.removeAttribute("data-prh"); }
     }
+  }
+  // a lyric sitting on a lower note of a chord belongs to the whole chord: move it to the chord's first note so it is spaced like any other syllable
+  for(const n of [...doc.getElementsByTagName("note")]){
+    if(!n.getElementsByTagName("chord")[0]) continue; const lys=[...n.children].filter(c=>c.tagName==="lyric"); if(!lys.length) continue;
+    let b=n.previousElementSibling; while(b && !(b.tagName==="note" && !b.getElementsByTagName("chord")[0])) b=b.previousElementSibling; if(!b) continue;
+    const have=new Set([...b.children].filter(c=>c.tagName==="lyric").map(c=>c.getAttribute("number")||"1"));
+    for(const l of lys){ const num=l.getAttribute("number")||"1"; if(have.has(num)) continue; const after=[...b.children].find(c=>c.tagName==="play"||c.tagName==="listen"); b.insertBefore(l, after||null); have.add(num); }
   }
   // a piece ends with a final bar line (Dorico leaves it implicit when the last bar carries an ending bracket)
   for(const part of parts){
@@ -1633,6 +1659,8 @@ seg("segBg","bg",applyBg);
 seg("segChord","chord",()=>render());
 seg("segChordSpace","chordSpace",()=>render());
 seg("segLyric","lyricFont",()=>render());
+seg("segLyrLines","lyricLines",()=>render());
+let rns; rng("noteSpace","noteSpace","noteSpaceOut",v=>v+"%",()=>{ clearTimeout(rns); rns=setTimeout(render,300); });
 S.emptyStaves=S.hideEmpty?"hide":"show"; seg("segEmpty","emptyStaves",()=>{ S.hideEmpty=S.emptyStaves==="hide"; save(); render(); });
 S.vRest=S.hideVoiceRests===false?"show":"hide"; seg("segVRest","vRest",async()=>{ S.hideVoiceRests=S.vRest==="hide"; save(); if(xmlDoc&&!pdfMode) await reloadQuiet(); });
 let rh; rng("head","head","headOut",v=>v+"%",()=>{ clearTimeout(rh); rh=setTimeout(render,200); });
