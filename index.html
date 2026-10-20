@@ -460,7 +460,7 @@ body.rec .stage{cursor:none}
       <div class="field"><span class="lbl">Letra</span>
         <div class="seg" id="segLyric"><button data-v="arial" aria-pressed="true">Arial Bold</button><button data-v="osmd" aria-pressed="false">Padrão</button></div>
       </div>
-      <div class="field"><span class="lbl">Hífens e linhas de prolongamento da letra</span>
+      <div class="field"><span class="lbl">Linhas de prolongamento da letra (sobre pausas e notas longas)</span>
         <div class="seg" id="segLyrLines"><button data-v="show" aria-pressed="false">Mostrar</button><button data-v="hide" aria-pressed="true">Esconder</button></div>
       </div>
       <div class="field"><label for="noteSpace">Espaço entre as notas <output id="noteSpaceOut">100%</output></label><input type="range" id="noteSpace" min="70" max="220" step="5" value="100">
@@ -746,7 +746,6 @@ try{ let P=opensheetmusicdisplay.VexFlowMusicSheetCalculator.prototype; while(P 
 const LYR_TAG="#010101";
 try{ let D=opensheetmusicdisplay.VexFlowMusicSheetDrawer.prototype; const own=(P,k)=>{ while(P && !Object.prototype.hasOwnProperty.call(P,k)) P=Object.getPrototypeOf(P); return P; };
   const PL=own(D,"drawLyricLines"); if(PL){ const o=PL.drawLyricLines; PL.drawLyricLines=function(...a){ if(S.lyricLines==="hide") return; return o.apply(this,a); }; }
-  const PD=own(D,"drawDashes"); if(PD){ const o=PD.drawDashes; PD.drawDashes=function(...a){ if(S.lyricLines==="hide") return; return o.apply(this,a); }; }
 }catch(e){ console.warn(e); }
 try{ osmd.EngravingRules.DefaultColorLyrics=LYR_TAG;
   const GL=opensheetmusicdisplay.GraphicalLabel.prototype, o2=GL.setLabelPositionAndShapeBorders;
