@@ -625,7 +625,8 @@ body.rec .stage{cursor:none}
           </div>
         </div>
         <h3 class="xh">Textos</h3>
-        <label class="check"><input type="checkbox" id="xText" checked> Créditos, compasso e título</label>
+        <label class="check"><input type="checkbox" id="xText" checked> Título e créditos</label>
+        <label class="check"><input type="checkbox" id="xMeas" checked> Número do compasso</label>
         <label class="check"><input type="checkbox" id="xGuides" checked> Mostrar áreas seguras do Reels na prévia</label>
         <button class="btn" id="xReset">Restaurar este formato</button>
       </div>
@@ -1604,6 +1605,7 @@ function renderMeta(){
   if(title) $("scoreName").textContent=title;
 }
 for(const el of document.querySelectorAll("input.meta")) el.addEventListener("input",()=>{ META[el.dataset.k]=el.value; saveMeta(); renderMeta(); });
+$("xMeas").checked=S.xMeas!==false; $("xMeas").onchange=()=>{ S.xMeas=$("xMeas").checked; save(); };
 $("mFromXml").onclick=()=>{ if(!xmlDoc){ toast("Essa partitura não veio de um MusicXML."); return; } META=metaFromXml(xmlDoc); saveMeta(); renderMeta(); toast("Créditos lidos do MusicXML."); };
 $("chkOv").checked=S.ov; $("chkOv").onchange=()=>{ S.ov=$("chkOv").checked; applyOv(); save(); };
 $("ovSub").value=S.ovSub; $("ovSub").oninput=()=>{ S.ovSub=$("ovSub").value.toUpperCase(); applyOv(); save(); };
@@ -2204,36 +2206,39 @@ function drawExportFrame(g, L, R, t, opts){
     if(L.W<L.H && XP && XP.f.key==="r"){ g.fillStyle="rgba(224,164,88,.10)"; g.fillRect(0,0,L.W,220); g.fillRect(0,L.H-420,L.W,420); g.fillRect(L.W-140,220,140,L.H-640); g.strokeRect(1.5,220,L.W-141.5,L.H-640); }
     g.restore();
   }
-  if(!opts.text || content==="cams") return;
+  if(content==="cams") return;
   const mi=measureAt(Math.max(0,t)), mnum=measures[mi]?measures[mi].num:1;
+  if(opts.text){
   g.textBaseline="alphabetic";
   const wrap=(txt,maxW,maxL)=>{ const out=[]; let cur=""; for(const w of String(txt).split(" ")){ const t=cur?cur+" "+w:w; if(g.measureText(t).width>maxW&&cur){ out.push(cur); cur=w; } else cur=t; } if(cur) out.push(cur); if(out.length>maxL){ out.length=maxL; out[maxL-1]=out[maxL-1].replace(/\s*\S*$/,"")+"…"; } return out; };
-  const credLine=[META.composer, META.arranger?"Arr. "+META.arranger:""].filter(Boolean);
-  const title=(META.title||scoreName||"").toUpperCase(), sub=META.subtitle||"";
-  if(L.W<L.H){ // vertical: one stacked block at the top
-    const x=L.title[0], maxW=L.W-x*2; let y=L.handle[1];
-    g.fillStyle="#E0A458"; g.font="500 22px 'IBM Plex Mono', monospace"; spaced(g,(S.ovSub||"").toUpperCase(),x,y,4); y+=84;
-    g.fillStyle="#EDEFF2"; g.font="900 84px 'Big Shoulders Display', 'Arial Narrow', sans-serif"; fitText(g,title,x,y,maxW); y+=48;
-    if(sub){ g.fillStyle="#B8C0CA"; g.font="italic 400 30px 'IBM Plex Sans', sans-serif"; for(const ln of wrap(sub,maxW,2)){ g.fillText(ln,x,y); y+=38; } }
-    if(credLine.length){ g.fillStyle="#EDEFF2"; g.font="500 24px 'IBM Plex Mono', monospace"; y+=8; spaced(g,credLine.join("  ·  ").toUpperCase(),x,y,3); y+=34; }
-    if(META.rights){ g.fillStyle="rgba(237,239,242,.6)"; g.font="400 18px 'IBM Plex Mono', monospace"; for(const ln of wrap(META.rights,maxW,2)){ g.fillText(ln,x,y); y+=24; } }
-  } else { // horizontal: credits top-left, title bottom-left, copyright bottom-right
-    g.fillStyle="#EDEFF2"; g.font="500 24px 'IBM Plex Mono', monospace";
-    { let y=L.handle[1]; for(const ln of credLine){ spaced(g,ln.toUpperCase(),L.handle[0],y,3); y+=34; } }
-    const subH=sub?40:0, tY=L.title[1]-subH;
-    let cw=0; if(META.rights){ g.font="400 18px 'IBM Plex Mono', monospace"; cw=Math.min(L.W*0.34, g.measureText(META.rights).width); }
-    const maxW=L.W-L.title[0]*2-(cw?cw+48:0);
-    g.fillStyle="#E0A458"; g.font="500 22px 'IBM Plex Mono', monospace"; spaced(g,(S.ovSub||"").toUpperCase(),L.title[0],tY-64,4);
-    g.fillStyle="#EDEFF2"; g.font="900 60px 'Big Shoulders Display', 'Arial Narrow', sans-serif"; fitText(g,title,L.title[0],tY,maxW);
-    if(sub){ g.fillStyle="#B8C0CA"; g.font="italic 400 26px 'IBM Plex Sans', sans-serif"; const ln=wrap(sub,maxW,1)[0]; g.fillText(ln,L.title[0],L.title[1]); }
-    if(META.rights){ g.save(); g.fillStyle="rgba(237,239,242,.6)"; g.font="400 18px 'IBM Plex Mono', monospace"; g.textAlign="right";
-      const lines=wrap(META.rights,L.W*0.34,3); lines.forEach((ln,i)=>g.fillText(ln,L.W-L.title[0],L.title[1]-(lines.length-1-i)*24)); g.restore(); }
+  const credLine=[META.composer, META.arranger?"Arr. "+META.arranger:""].filter(Boolean).join("   ·   ");
+  const title=META.title||scoreName||"", sub=META.subtitle||"", kick=(S.ovSub||"").toUpperCase(), cx=L.measLeft?(L.W-140)/2:L.W/2, maxW=L.W-144-(L.measLeft?140:0); // Reels: keep clear of the right-hand buttons
+  const vert=L.W<L.H, sz=vert?{t:68,s:28,c:26,k:22}:{t:56,s:26,c:24,k:20};
+  const fitC=(txt,font,size,y,minSize)=>{ let z=size; g.font=font.replace("%",z); while(g.measureText(txt).width>maxW && z>(minSize||16)){ z-=2; g.font=font.replace("%",z); } g.fillText(txt,cx,y); };
+  g.save(); g.textAlign="center";
+  // lines of the title block, top to bottom
+  const lines=[];
+  if(kick) lines.push({sz:sz.k, gap:1.0, draw:y=>{ g.fillStyle="#E0A458"; g.font=`500 ${sz.k}px 'IBM Plex Mono', monospace`; g.fillText(kick,cx,y); }});
+  if(title) lines.push({sz:sz.t, gap:1.15, draw:y=>{ g.fillStyle="#EDEFF2"; fitC(title,"bold %px Arial, Helvetica, sans-serif",sz.t,y,28); }});
+  if(sub){ g.font=`italic bold ${sz.s}px Arial, Helvetica, sans-serif`; for(const ln of wrap(sub,maxW,2)) lines.push({sz:sz.s, gap:1.25, draw:y=>{ g.fillStyle="#B8C0CA"; g.font=`italic bold ${sz.s}px Arial, Helvetica, sans-serif`; g.fillText(ln,cx,y); }}); }
+  if(credLine) lines.push({sz:sz.c, gap:1.7, draw:y=>{ g.fillStyle="#EDEFF2"; fitC(credLine,"bold %px Arial, Helvetica, sans-serif",sz.c,y,14); }});
+  // baseline of each line: the next line's size decides the step (credits get extra air above)
+  const ys=[]; let acc=0; lines.forEach((l,i)=>{ if(i) acc+=l.sz*l.gap; ys.push(acc); });
+  const span=acc, top = vert ? L.handle[1]+(lines[0]?lines[0].sz*0.8:0) : (L.H-(META.rights&&!L.video?60:36)-span);
+  lines.forEach((l,i)=>l.draw(top+ys[i]));
+  // copyright: centred under the video (or under the score when there is no video)
+  if(META.rights){ g.fillStyle="rgba(237,239,242,.62)"; g.font="400 18px Arial, Helvetica, sans-serif";
+    const rl=wrap(META.rights,maxW,2); let ry;
+    if(L.video) ry=L.video[1]+L.video[3]+30; else if(vert) ry=L.band[1]+L.band[3]+30; else ry=L.H-22-(rl.length-1)*22;
+    rl.forEach((ln,i)=>g.fillText(ln,cx,ry+i*22)); }
+  g.restore();
   }
   const drawMeas=(x,y,align)=>{
     g.fillStyle="#9AA3AE"; g.font="500 20px 'IBM Plex Mono', monospace"; spaced(g,"COMPASSO",x,y,4,align);
     g.textAlign=align; g.fillStyle="#E0A458"; g.font="900 110px 'Big Shoulders Display', 'Arial Narrow', sans-serif"; g.fillText(String(mnum),x,y+104);
     g.textAlign="left";
   };
+  if(S.xMeas===false) return;
   if(L.measBottom) drawMeas(L.measBottom[0],L.measBottom[1], L.measLeft?"left":"right");
   else if(L.meas) drawMeas(L.meas[0],L.meas[1],"right");
 }
