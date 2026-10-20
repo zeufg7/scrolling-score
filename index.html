@@ -828,6 +828,7 @@ function drawBrackets(){
 }
 /* render with the chosen music font: the glyph table is found after the first drawing, then swapped */
 function engrave(){
+  try{ osmd.EngravingRules.SheetMaximumWidth = S.mode==="horizontal" ? 4e6 : 32767; }catch(e){} // one line, however long the piece
   try{ const f=(S.noteSpace||100)/100, R=osmd.EngravingRules; R.VoiceSpacingMultiplierVexflow=0.85*f; R.VoiceSpacingAddendVexflow=3*f;
     // let a bar grow as much as its lyrics need, with a little air between words
     R.MaximumLyricsElongationFactor=3; R.HorizontalBetweenLyricsDistance=0.45; R.LyricOverlapAllowedIntoNextMeasure=1; }catch(e){}
@@ -2232,13 +2233,20 @@ async function rasterScore(scale){
   };
   const w=parseFloat(svg.getAttribute("width"))||svg.getBoundingClientRect().width;
   const h=parseFloat(svg.getAttribute("height"))||svg.getBoundingClientRect().height;
-  const load=cl=>new Promise((res,rej)=>{ const im=new Image(); const url=URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(cl)],{type:"image/svg+xml"})); im.onload=()=>{ res(im); URL.revokeObjectURL(url); }; im.onerror=rej; im.src=url; });
-  const [imI,imA]=await Promise.all([load(make(ink,ink2)), load(make("#E0A458","#E0A458"))]);
-  const tileW=4096, outW=Math.ceil(w*scale), outH=Math.ceil(h*scale), tiles=[];
-  for(let x=0;x<outW;x+=tileW){
-    const tw=Math.min(tileW,outW-x);
-    const mk=im=>{ const c=document.createElement("canvas"); c.width=tw; c.height=outH; c.getContext("2d").drawImage(im, x/scale, 0, tw/scale, h, 0, 0, tw, outH); return c; };
-    tiles.push({x, w:tw, ink:mk(imI), amber:mk(imA)});
+  // a long single line can be far wider than a browser will decode as one image: cut it into slices through the viewBox
+  const vb0=svg.viewBox&&svg.viewBox.baseVal&&svg.viewBox.baseVal.width ? svg.viewBox.baseVal : {x:0,y:0,width:w,height:h}, ux=vb0.width/w;
+  const strI=new XMLSerializer().serializeToString(make(ink,ink2)), strA=new XMLSerializer().serializeToString(make("#E0A458","#E0A458"));
+  const slice=(str,cx,cw)=>str.replace(/^<svg\b[^>]*>/, tag=>{ let t=tag.replace(/\s(width|height|viewBox)="[^"]*"/g,""); return t.replace(/^<svg/, `<svg width="${cw}" height="${h}" viewBox="${vb0.x+cx*ux} ${vb0.y} ${cw*ux} ${vb0.height}" preserveAspectRatio="none"`); });
+  const load=str=>new Promise((res,rej)=>{ const im=new Image(); const url=URL.createObjectURL(new Blob([str],{type:"image/svg+xml"})); im.onload=()=>{ res(im); URL.revokeObjectURL(url); }; im.onerror=rej; im.src=url; });
+  const tileW=4096, outW=Math.ceil(w*scale), outH=Math.ceil(h*scale), tiles=[], CH=12000;
+  for(let cx=0; cx<w; cx+=CH){
+    const cw=Math.min(CH,w-cx); const [imI,imA]=await Promise.all([load(slice(strI,cx,cw)), load(slice(strA,cx,cw))]);
+    const o0=Math.floor(cx*scale), o1=Math.min(outW, Math.ceil((cx+cw)*scale));
+    for(let x=o0;x<o1;x+=tileW){
+      const tw=Math.min(tileW,o1-x);
+      const mk=im=>{ const c=document.createElement("canvas"); c.width=tw; c.height=outH; c.getContext("2d").drawImage(im, x/scale-cx, 0, tw/scale, h, 0, 0, tw, outH); return c; };
+      tiles.push({x, w:tw, ink:mk(imI), amber:mk(imA)});
+    }
   }
   const hr=host.getBoundingClientRect();
   for(const list of [srcNotes,notes]) for(const n of list){ if(n.els){ const r=n.els.getBoundingClientRect(); n.bb={x:r.left-hr.left, y:r.top-hr.top, w:r.width, h:r.height}; } }
