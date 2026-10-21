@@ -186,6 +186,8 @@ body.rec .tline{display:none}
 .key.rep{background:#161B23}
 .key:hover{filter:brightness(1.08)}
 .key[aria-pressed=true]{outline:2px solid var(--amber);outline-offset:2px;box-shadow:0 0 0 4px rgba(224,164,88,.18)}
+.key.bt{min-width:58px;font-family:var(--sans);font-weight:600;font-size:10.5px;gap:2px}
+.key.bt svg{display:block}
 .key.erase{font-family:var(--sans);font-weight:500;font-size:12px}
 .jorder{flex:1 1 260px;min-width:160px;background:var(--bg);border:1px solid var(--line);border-radius:5px;color:var(--fg);font-family:var(--mono);font-size:12px;padding:6px 8px}
 .jorder.man{border-color:var(--amber)}
@@ -393,6 +395,7 @@ body.rec .stage{cursor:none}
       <button class="chip on" id="tlFollow" title="A linha do tempo acompanha a agulha"><span class="dot"></span>Seguir</button>
     </div>
     <div class="jpal" id="jpal" hidden>
+      <div class="jrow" id="btools"></div>
       <div class="jrow" id="jtools"></div>
       <div class="jrow">
         <span class="jk">ORDEM DE EXECUÇÃO</span>
@@ -835,7 +838,7 @@ function engrave(){
   osmd.render();
   if(!vfFont) vfFont=findVfFont();
   if(vfFont && vfCur!==fontKey()){ setMusicFont(S.mfont); osmd.render(); }
-  styleEngraving(); if(S.chordSpace!=="stretch") unclutterChords(); unclutterLyrics(); drawBrackets();
+  styleEngraving(); if(S.chordSpace!=="stretch") unclutterChords(); unclutterLyrics(); drawBrackets(); try{ drawBarStyles(); }catch(e){ console.warn(e); }
 }
 let scoreSrc=null, scoreName="", loaded=false;
 let tl=[];        // timeline entries: {t, x, y, h, m, notes:[...]}
@@ -931,7 +934,7 @@ async function loadScore(src, name, fromSample){
   $("loading").hidden=false;
   src=fillEmptyMeasures(src);
   try{
-    await osmd.load(src);
+    await osmd.load(src); dropPhantomRepeats();
   }catch(err){
     $("loading").hidden=true;
     toast("Não consegui ler esse arquivo. Exporte como MusicXML (.musicxml ou .mxl) no Cubase, Dorico ou MuseScore.");
@@ -2931,7 +2934,7 @@ async function edit(fn){
 async function reloadQuiet(){ // re-read the document after a display option changed (not an edit)
   prepareDoc(xmlDoc);
   const vis=osmd.Sheet?osmd.Sheet.Instruments.map(i=>i.Visible):[];
-  await osmd.load(new XMLSerializer().serializeToString(xmlDoc));
+  await osmd.load(new XMLSerializer().serializeToString(xmlDoc)); dropPhantomRepeats();
   osmd.Sheet.Instruments.forEach((ins,i)=>{ if(vis[i]===false) ins.Visible=false; });
   await render();
 }
@@ -2941,7 +2944,7 @@ async function reloadFromDoc(){
     prepareDoc(xmlDoc);
     const vis=osmd.Sheet?osmd.Sheet.Instruments.map(i=>i.Visible):[];
     const str=new XMLSerializer().serializeToString(xmlDoc);
-    await osmd.load(str);
+    await osmd.load(str); dropPhantomRepeats();
     osmd.Sheet.Instruments.forEach((ins,i)=>{ if(vis[i]===false) ins.Visible=false; });
     await render();
     try{ localStorage.setItem("pr.score",str); }catch(e){}
@@ -2989,8 +2992,8 @@ function neighbor(dir){
 }
 function editKeys(e){
   if(PA.on) return annKeys(e);
-  if(!editMode) return false;
   const mod=e.ctrlKey||e.metaKey;
+  if(!editMode){ if(!pdfMode && !$("jpal").hidden && mod && /^[zZyY]$/.test(e.key)){ e.preventDefault(); (e.key==="y"||e.key==="Y"||e.shiftKey)?redo():undo(); return true; } return false; }
   if(mod&&(e.key==="z"||e.key==="Z")){ e.preventDefault(); e.shiftKey?redo():undo(); return true; }
   if(mod&&(e.key==="y"||e.key==="Y")){ e.preventDefault(); redo(); return true; }
   if(mod&&(e.key==="s"||e.key==="S")){ e.preventDefault(); saveXml(); return true; }
@@ -3450,6 +3453,26 @@ const JTOOLS=[
   {sep:1},
   {k:"erase", h:"Apagar", t:"Remove os símbolos do compasso clicado", c:"erase"}
 ];
+/* bar lines, as on the Stream Deck: the tool changes the bar line at the END of the bar you click */
+const BTOOLS=[
+  {k:"b-regular",     n:"Simples",   ic:[[0,1]]},
+  {k:"b-light-light", n:"Dupla",     ic:[[-2.5,1],[2.5,1]]},
+  {k:"b-dashed",      n:"Tracejada", ic:[[0,1,"d"]]},
+  {k:"b-light-heavy", n:"Final",     ic:[[-3.5,1],[1.5,3.5]]},
+  {k:"b-heavy",       n:"Grossa",    ic:[[0,3.5]]},
+  {k:"b-short",       n:"Curta",     ic:[[0,1,"s"]]},
+  {k:"b-tick",        n:"Tick",      ic:[[0,1,"t"]]},
+  {k:"b-none",        n:"Sem barra", ic:[]}
+];
+const BARNAME=Object.fromEntries(BTOOLS.map(t=>[t.k.slice(2),t.n]));
+function barIcon(ic){
+  const W=26,H=22, y0=2, y1=20; let d=`<path d="M3 ${y0}H23M3 ${y0+4.5}H23M3 ${y0+9}H23M3 ${y0+13.5}H23M3 ${y1}H23" stroke="currentColor" stroke-width=".6" opacity=".45"/>`;
+  for(const [x,w,f] of ic){ const cx=13+x-w/2; let a=y0, b=y1; if(f==="s"){ a=y0+4.5; b=y0+13.5; } if(f==="t"){ a=y0-2; b=y0+4.5; }
+    if(f==="d"){ for(let y=y0;y<y1;y+=4) d+=`<rect x="${cx}" y="${y}" width="${w}" height="2.4" fill="currentColor"/>`; }
+    else d+=`<rect x="${cx}" y="${a}" width="${w}" height="${b-a}" fill="currentColor"/>`; }
+  if(!ic.length) d+=`<path d="M9 6L17 16M17 6L9 16" stroke="currentColor" stroke-width="1.4"/>`;
+  return `<svg width="${W}" height="${H}" viewBox="0 -1 ${W} ${H+1}">${d}</svg>`;
+}
 const JUMPNAME={dc:"D.C.",dcc:"D.C. al Coda",dcf:"D.C. al Fine",ds:"D.S.",dsc:"D.S. al Coda",dsf:"D.S. al Fine"};
 let JT=null; // armed tool
 
@@ -3497,6 +3520,84 @@ function parseXmlJumps(doc){
   return out;
 }
 
+/* the document side: bar lines and repeat signs written into the MusicXML (every part, same bar) */
+function xmlBars(){ return [...xmlDoc.getElementsByTagName("part")].map(p=>[...p.children].filter(c=>c.tagName==="measure")); }
+function barlineAt(m, loc, create){
+  let bl=[...m.children].find(c=>c.tagName==="barline"&&(c.getAttribute("location")||"right")===loc);
+  if(!bl&&create){ bl=xmlDoc.createElement("barline"); bl.setAttribute("location",loc); if(loc==="left") m.insertBefore(bl, m.firstElementChild&&m.firstElementChild.tagName==="print"?m.firstElementChild.nextSibling:m.firstElementChild); else m.append(bl); }
+  return bl;
+}
+function barStyle(bl, style){ let st=bl.getElementsByTagName("bar-style")[0]; if(!st){ st=xmlDoc.createElement("bar-style"); bl.insertBefore(st, bl.firstChild); } st.textContent=style; }
+function dropIfEmpty(bl){ if(bl && !bl.firstElementChild) bl.remove(); }
+async function setBarline(si, style){
+  if(pdfMode||!xmlDoc){ toast("Na partitura em PDF as barras são as da página. Para trocar, use a borracha e o lápis da edição do PDF."); return; }
+  if(typeof editing!=="undefined" && editing) return;
+  undoStack.push(new XMLSerializer().serializeToString(xmlDoc)); redoStack=[];
+  let hadRep=false;
+  for(const ms of xmlBars()){ const m=ms[si]; if(!m) continue; const bl=barlineAt(m,"right",true);
+    for(const r of [...bl.getElementsByTagName("repeat")]){ r.remove(); hadRep=true; }
+    barStyle(bl, style); }
+  if(hadRep && JM.marks[si] && JM.marks[si].re){ delete JM.marks[si].re; if(!Object.keys(JM.marks[si]).length) delete JM.marks[si]; JM.user=true; JM.order=null; saveJumps(); }
+  await reloadFromDoc();
+  toast(`Compasso ${srcM[si]?srcM[si].num:si+1}: barra ${BARNAME[style].toLowerCase()} no fim.${hadRep?" O sinal de repetição foi tirado.":""} Ctrl+Z desfaz.`);
+}
+/* a ‖: or :‖ placed on the timeline is engraved too */
+async function syncRepeatXml(si){
+  if(typeof editing!=="undefined" && editing) return;
+  const mk=JM.marks[si]||{};
+  undoStack.push(new XMLSerializer().serializeToString(xmlDoc)); redoStack=[];
+  for(const ms of xmlBars()){ const m=ms[si]; if(!m) continue;
+    // forward repeat on the left bar line
+    let L=barlineAt(m,"left",!!mk.rs);
+    if(L){ for(const r of [...L.getElementsByTagName("repeat")]) r.remove();
+      if(mk.rs){ barStyle(L,"heavy-light"); const r=xmlDoc.createElement("repeat"); r.setAttribute("direction","forward"); L.append(r); }
+      else { const st=L.getElementsByTagName("bar-style")[0]; if(st&&st.textContent==="heavy-light") st.remove(); dropIfEmpty(L); } }
+    // backward repeat on the right bar line
+    let R=barlineAt(m,"right",!!mk.re);
+    if(R){ for(const r of [...R.getElementsByTagName("repeat")]) r.remove();
+      if(mk.re){ barStyle(R,"light-heavy"); const r=xmlDoc.createElement("repeat"); r.setAttribute("direction","backward"); if(mk.re>2) r.setAttribute("times",String(mk.re)); R.append(r); }
+      else { const st=R.getElementsByTagName("bar-style")[0]; if(st&&st.textContent==="light-heavy"&&si<m.parentNode.querySelectorAll(":scope>measure").length-1) st.remove(); dropIfEmpty(R); } }
+  }
+  await reloadFromDoc();
+  const lab=markLabel(JM.marks[si]||{});
+  toast(`Compasso ${srcM[si]?srcM[si].num:si+1}: ${lab.length?lab.join(" · "):"sem símbolos"}. ${measures.length!==srcM.length?"Agora são "+measures.length+" compassos tocados.":""}`);
+}
+/* OSMD closes a repeat it thinks is still open with a backward repeat on the last bar; the file has none, so drop it */
+function dropPhantomRepeats(){
+  const sh=osmd.Sheet; if(!sh||!xmlDoc) return; const part=xmlDoc.getElementsByTagName("part")[0]; if(!part) return;
+  const ms=[...part.children].filter(c=>c.tagName==="measure");
+  sh.SourceMeasures.forEach((sm,i)=>{ const m=ms[i], L=sm.LastRepetitionInstructions; if(!m||!L||!L.length) return;
+    if([...m.getElementsByTagName("repeat")].some(r=>r.getAttribute("direction")==="backward")) return;
+    for(let j=L.length-1;j>=0;j--) if(L[j].type===2) L.splice(j,1); });
+}
+/* bar lines VexFlow cannot draw (dashed, heavy, short, tick): swap its plain line for ours */
+function drawBarStyles(){
+  const svg=host.querySelector("svg"), gs=osmd.GraphicSheet; if(!svg||!gs||!xmlDoc) return;
+  const part=xmlDoc.getElementsByTagName("part")[0]; if(!part) return;
+  const ms=[...part.children].filter(c=>c.tagName==="measure"), want={};
+  ms.forEach((m,i)=>{ const bl=[...m.children].find(c=>c.tagName==="barline"&&(c.getAttribute("location")||"right")==="right"), st=bl&&bl.getElementsByTagName("bar-style")[0];
+    if(st && /^(dashed|heavy|short|tick|dotted)$/.test(st.textContent) && !bl.getElementsByTagName("repeat")[0]) want[i]=st.textContent; });
+  if(!Object.keys(want).length) return;
+  const idx=new Map(osmd.Sheet.SourceMeasures.map((sm,i)=>[sm,i])), at=new Map();
+  for(const page of gs.MusicPages||[]) for(const sys of page.MusicSystems||[]) for(const sl of sys.StaffLines||[]) for(const gm of sl.Measures||[]){
+    const i=idx.get(gm.parentSourceMeasure); if(!(i in want)) continue; let st=null; try{ st=gm.getVFStave(); }catch(e){} if(!st) continue;
+    at.set(Math.round((st.getX()+st.getWidth())*10), {style:want[i], sp:st.getSpacingBetweenLines?st.getSpacingBetweenLines():10, X:st.getX()+st.getWidth()}); }
+  const NS="http://www.w3.org/2000/svg";
+  for(const r of [...svg.querySelectorAll("rect")]){
+    const w=+r.getAttribute("width"); if(!(w>0&&w<2.5)) continue; const x=+r.getAttribute("x");
+    const hit=at.get(Math.round((x+w)*10))||at.get(Math.round(x*10)); if(!hit) continue;
+    const y=+r.getAttribute("y"), h=+r.getAttribute("height"), sp=hit.sp, staff=h<4.6*sp, fill=r.getAttribute("fill")||"#000000";
+    r.style.display="none";
+    const add=(xx,yy,ww,hh)=>{ const n=document.createElementNS(NS,"rect"); n.setAttribute("x",xx); n.setAttribute("y",yy); n.setAttribute("width",ww); n.setAttribute("height",Math.max(0,hh)); n.setAttribute("fill",fill); n.setAttribute("class","pr-bar"); r.parentNode.insertBefore(n,r); };
+    const R=hit.X;
+    if(hit.style==="heavy") add(R-0.45*sp, y, 0.45*sp, h);
+    else if(hit.style==="dashed"){ const dl=0.6*sp, gap=0.45*sp; for(let yy=y; yy<y+h; yy+=dl+gap) add(R-w, yy, w, Math.min(dl, y+h-yy)); }
+    else if(hit.style==="dotted"){ for(let yy=y+0.5*sp; yy<y+h; yy+=sp) add(R-0.2*sp, yy-0.1*sp, 0.2*sp, 0.2*sp); }
+    else if(!staff) continue; // short and tick stay inside each staff
+    else if(hit.style==="short") add(R-w, y+sp, w, 2*sp);
+    else if(hit.style==="tick") add(R-w, y-0.5*sp, w, 1.5*sp);
+  }
+}
 const endNums=mk=>mk&&mk.end ? String(mk.end).split(",").map(Number).filter(n=>n>0) : [];
 /* standard reading: repeats with 1st/2nd endings, then D.C./D.S. (al Fine / al Coda) without repeats, last ending only */
 function computeOrder(N, marks){
@@ -3626,6 +3727,10 @@ function markLabel(mk){
   return r;
 }
 function buildPalette(){
+  const bb=$("btools"); bb.textContent="";
+  const bl=document.createElement("span"); bl.className="jk"; bl.textContent="BARRAS"; bb.append(bl);
+  for(const t of BTOOLS){ const b=document.createElement("button"); b.className="key bt"; b.dataset.k=t.k; b.setAttribute("aria-pressed","false");
+    b.title=`${t.n}: clique num compasso para trocar a barra do fim dele`; b.innerHTML=barIcon(t.ic)+`<span>${t.n}</span>`; b.onclick=()=>armTool(JT===t.k?null:t.k); bb.append(b); }
   const box=$("jtools"); box.textContent="";
   const lab=document.createElement("span"); lab.className="jk"; lab.textContent="SÍMBOLOS"; box.append(lab);
   for(const t of JTOOLS){
@@ -3638,15 +3743,16 @@ function buildPalette(){
   }
 }
 function armTool(k){
-  JT=k; $("jtools").querySelectorAll(".key").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.k===k)));
-  const t=JTOOLS.find(x=>x.k===k);
-  $("tlHint").textContent = k ? (k==="erase" ? "Clique num compasso (na linha do tempo ou na partitura) para apagar os símbolos dele. Esc cancela." : `Clique no compasso onde fica “${t.t.split(":")[0]}”, na linha do tempo ou na partitura. Clique de novo para tirar. Esc cancela.`) : TLHINT;
+  JT=k; $("jpal").querySelectorAll(".key").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.k===k)));
+  const t=JTOOLS.find(x=>x.k===k), bt=BTOOLS.find(x=>x.k===k);
+  $("tlHint").textContent = bt ? `Clique num compasso (na linha do tempo ou na partitura): a barra do fim dele vira “${bt.n}”. Esc cancela.` : k ? (k==="erase" ? "Clique num compasso (na linha do tempo ou na partitura) para apagar os símbolos dele. Esc cancela." : `Clique no compasso onde fica “${t.t.split(":")[0]}”, na linha do tempo ou na partitura. Clique de novo para tirar. Esc cancela.`) : TLHINT;
   stage.classList.toggle("jumping",!!k); TL.dirty=true;
 }
 const TLHINT="Arraste a faixa da partitura para alinhar o início. Arraste uma barra de compasso para prendê-la no vídeo. Duplo clique solta.";
 function applyTool(si){
   if(!JT||si===null||si<0||!srcM[si]) return;
   const mk=Object.assign({}, JM.marks[si]||{}), k=JT;
+  if(k.startsWith("b-")){ setBarline(si, k.slice(2)); return; }
   if(k==="erase"){ delete JM.marks[si]; }
   else {
     if(k==="rs"||k==="segno"||k==="coda"||k==="tocoda"||k==="fine"){ if(mk[k]) delete mk[k]; else mk[k]=1; }
@@ -3656,6 +3762,7 @@ function applyTool(si){
     if(Object.keys(mk).length) JM.marks[si]=mk; else delete JM.marks[si];
   }
   JM.user=true; JM.order=null; saveJumps();
+  if((k==="rs"||k==="re"||k==="erase") && !pdfMode && xmlDoc){ syncRepeatXml(si); return; }
   const was=measures.length; unroll(false);
   const lab=markLabel(JM.marks[si]||{});
   toast(`Compasso ${srcM[si].num}: ${lab.length?lab.join(" · "):"sem símbolos"}. ${measures.length!==was?"Agora são "+measures.length+" compassos tocados.":""}`);
