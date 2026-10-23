@@ -193,6 +193,14 @@ body.rec .tline{display:none}
 .jorder.man{border-color:var(--amber)}
 .jstat{font-size:12px;color:var(--mute)}
 .mini.on{border-color:var(--amber);color:var(--amber)}
+#barh{position:absolute;left:0;top:0;z-index:4;pointer-events:none}
+#barh .bh{position:absolute;width:14px;margin-left:-7px;cursor:ew-resize;pointer-events:auto;touch-action:none}
+#barh .bh::after{content:"";position:absolute;left:5px;top:0;bottom:0;width:4px;border-radius:2px;background:var(--amber);opacity:0;transition:opacity .12s}
+#barh .bh:hover::after,#barh .bh.drag::after{opacity:.85}
+#barh .bh.set::after{opacity:.4}
+#barh .bh .tip{position:absolute;bottom:100%;left:50%;transform:translate(-50%,-4px);background:var(--amber);color:#1A1206;font:600 11px/1 var(--sans);padding:4px 6px;border-radius:4px;white-space:nowrap;display:none}
+#barh .bh:hover .tip,#barh .bh.drag .tip{display:block}
+body.rec #barh{display:none}
 #jmarks{position:absolute;left:0;top:0;pointer-events:none;z-index:3}
 #jmarks .jm{position:absolute;transform:translate(-2px,-100%);background:var(--amber);color:#1A1206;font:600 11px/1 var(--sans);padding:3px 5px;border-radius:4px;white-space:nowrap}
 #jmarks .jm .gl{font-family:'Segoe UI Symbol','Apple Symbols','Noto Music','Noto Sans Symbols 2',serif;font-size:14px;font-weight:400}
@@ -356,6 +364,7 @@ body.rec .stage{cursor:none}
       <div class="bar" id="bar"></div>
       <div class="selbox" id="selBox" hidden></div>
       <div id="jmarks"></div>
+      <div id="barh"></div>
     </div>
     <div class="ebar" id="ebar" hidden>
       <div class="ebar-top">
@@ -466,6 +475,11 @@ body.rec .stage{cursor:none}
       <div class="field"><span class="lbl">Linhas de prolongamento da letra (sobre pausas e notas longas)</span>
         <div class="seg" id="segLyrLines"><button data-v="show" aria-pressed="false">Mostrar</button><button data-v="hide" aria-pressed="true">Esconder</button></div>
       </div>
+      <div class="field"><span class="lbl">Largura dos compassos</span>
+        <div class="seg" id="segBarW"><button data-v="uniform" aria-pressed="true">Uniforme</button><button data-v="dorico" aria-pressed="false">Proporcional</button><button data-v="osmd" aria-pressed="false">Antigo</button></div>
+        <label for="barScale" style="margin-top:8px">Largura média <output id="barScaleOut">100%</output></label><input type="range" id="barScale" min="50" max="200" step="5" value="100">
+        <p class="hint">O espaçamento segue as regras do Dorico (semínima = 4 espaços, cada valor dobrado ×√2, mínimo 1,6 espaço, e a letra abre o compasso quando precisa). Uniforme: todos os compassos ficam com a largura média e só crescem os que precisam. Proporcional: cada compasso do tamanho do seu conteúdo. Antigo: o espaçamento de antes. No modo Editar, arraste a barra de um compasso para alargar ou estreitar só ele; duplo clique volta ao normal.</p>
+        <button class="mini wide" id="barReset" style="margin-top:6px">Desfazer larguras ajustadas à mão</button></div>
       <div class="field"><label for="noteSpace">Espaço entre as notas <output id="noteSpaceOut">100%</output></label><input type="range" id="noteSpace" min="70" max="220" step="5" value="100">
         <p class="hint">Se sílabas da letra encostarem umas nas outras, aumente. Os compassos alargam proporcionalmente.</p></div>
       <div class="field"><span class="lbl">Pautas vazias</span>
@@ -684,7 +698,7 @@ const audio=$("audio");
 
 /* ---------- settings ---------- */
 const S = { mode:"horizontal", bg:"zeufg", zoom:100, playhead:33, hl:true, ov:true, ovSub:"ANÁLISE DE PARTITURA",
-  offset:0, tl:true, lineH:100, lineW:3, lineY:0, lineX:0, tapEvery:1, vid:"br", vidSize:28, volA:100, volS:60, volC:50, synth:true, click:false, rate:100, loop:false, loopA:1, loopB:4, hideEmpty:false, hideVoiceRests:true, mfont:"maestro", chord:"arial", head:100, glyph:100, chordSpace:"notes", lyricFont:"arial", lyricLines:"hide", noteSpace:100 };
+  offset:0, tl:true, lineH:100, lineW:3, lineY:0, lineX:0, tapEvery:1, vid:"br", vidSize:28, volA:100, volS:60, volC:50, synth:true, click:false, rate:100, loop:false, loopA:1, loopB:4, hideEmpty:false, hideVoiceRests:true, mfont:"maestro", chord:"arial", head:100, glyph:100, chordSpace:"notes", lyricFont:"arial", lyricLines:"hide", noteSpace:100, barWidth:"uniform", barScale:100 };
 try { Object.assign(S, JSON.parse(localStorage.getItem("pr.settings")||"{}")); } catch(e){}
 const save = () => { try { localStorage.setItem("pr.settings", JSON.stringify(S)); } catch(e){} };
 
@@ -745,6 +759,52 @@ try{ const P=opensheetmusicdisplay.GraphicalChordSymbolContainer.prototype, orig
 try{ let P=opensheetmusicdisplay.VexFlowMusicSheetCalculator.prototype; while(P && !Object.prototype.hasOwnProperty.call(P,"calculateElongationFactor")) P=Object.getPrototypeOf(P);
   if(P){ const orig=P.calculateElongationFactor; P.calculateElongationFactor=function(entries,se,dict,w,factor,...rest){ const r=orig.call(this,entries,se,dict,w,factor,...rest); if(S.chordSpace!=="stretch" && entries && entries.length && entries[0] instanceof opensheetmusicdisplay.GraphicalChordSymbolContainer) return factor; return r; }; }
 }catch(e){ console.warn(e); }
+/* bar widths: every bar gets the piece's median width (by its length in beats) and grows only when its notes or lyrics need more;
+   bars you resized by hand keep your factor on top */
+const BW={ user:{}, nat:[], T:0 };
+function barWKey(){ return "pr.barw:"+(scoreName||""); }
+function loadBarW(){ BW.user={}; try{ const v=JSON.parse(localStorage.getItem(barWKey())||"null"); if(v&&typeof v==="object") BW.user=v; }catch(e){} }
+function saveBarW(){ try{ if(Object.keys(BW.user).length) localStorage.setItem(barWKey(), JSON.stringify(BW.user)); else localStorage.removeItem(barWKey()); }catch(e){} }
+try{ let P=opensheetmusicdisplay.VexFlowMusicSheetCalculator.prototype; while(P && !Object.prototype.hasOwnProperty.call(P,"calculateXLayout")) P=Object.getPrototypeOf(P);
+  if(P){ const orig=P.calculateXLayout; P.calculateXLayout=function(...a){ const r=orig.apply(this,a); try{ shapeBarWidths(this.graphicalMusicSheet); }catch(e){ console.warn(e); } return r; }; }
+}catch(e){ console.warn(e); }
+/* Dorico's note spacing (from its Engraving Options): a crotchet gets 4 staff spaces, each doubling of the duration
+   multiplies the space by sqrt(2), nothing gets less than 1.6 spaces; lyrics push the bar open when they need more
+   (0.75 space between syllables, 1 space for a hyphen); 0.5 space before the bar line, 1.5 after it */
+const DSP={ crotchet:4, ratio:Math.SQRT2, floor:1.6, lyrGap:0.75, hyph:1, before:0.5, after:1.5 };
+const dSpace=d=>Math.max(DSP.floor, DSP.crotchet*Math.pow(DSP.ratio, Math.log2(Math.max(1e-4,d)/0.25)));
+function barNeed(t, dur){
+  const on=new Map(); const lyr={};
+  for(const g of t){ if(!g||!g.staffEntries) continue; const vis=!(g.ParentStaff&&g.ParentStaff.ParentInstrument&&g.ParentStaff.ParentInstrument.Visible===false); if(!vis) continue;
+    for(const se of g.staffEntries){ const ts=se.relInMeasureTimestamp?se.relInMeasureTimestamp.RealValue:0; let short=Infinity;
+      for(const ve of se.graphicalVoiceEntries||[]) for(const n of ve.notes||[]){ const L=n.sourceNote&&n.sourceNote.Length; if(L&&L.RealValue>0) short=Math.min(short,L.RealValue); }
+      on.set(ts, Math.min(on.get(ts)??Infinity, short));
+      for(const le of se.lyricsEntries||[]){ const lab=le.graphicalLabel, ps=lab&&lab.PositionAndShape; if(!ps) continue; const v=(g.ParentStaff&&g.ParentStaff.idInMusicSheet||0)+":"+(le.lyricsEntry&&le.lyricsEntry.verseNumber||1);
+        (lyr[v]=lyr[v]||[]).push({ts, w:Math.max(0,ps.BorderRight-ps.BorderLeft), hy:!!(le.lyricsEntry&&le.lyricsEntry.word&&le.lyricsEntry.word.syllables&&le.lyricsEntry.word.syllables.length>1)}); } } }
+  const ts=[...on.keys()].sort((a,b)=>a-b); let w=0;
+  ts.forEach((x,k)=>{ const nx=k+1<ts.length?ts[k+1]:dur; const d=Math.max(1e-4, nx-x); const own=on.get(x); w+=dSpace(Math.min(d, isFinite(own)?Math.max(d,own):d)); });
+  if(!ts.length) w=dSpace(dur);
+  let lw=0; for(const k in lyr){ const L=lyr[k].sort((a,b)=>a.ts-b.ts); let s=0; L.forEach((e,j)=>{ s+=(j===0||j===L.length-1)?e.w*0.5+e.w*0.5:e.w; if(j) s+=DSP.lyrGap+(L[j-1].hy?DSP.hyph:0); }); lw=Math.max(lw,s); }
+  return { ideal:w+DSP.before+DSP.after, lyr:lw?lw+DSP.before+DSP.after:0 };
+}
+function shapeBarWidths(gms){
+  const ML=gms.MeasureList||[], SM=gms.ParentMusicSheet.SourceMeasures, idx=new Map(SM.map((m,i)=>[m,i]));
+  const rows=[]; for(const t of ML){ const g=t&&t.find(x=>x); if(!g||!g.parentSourceMeasure) continue; const sm=g.parentSourceMeasure;
+    rows.push({t, sm, i:idx.get(sm), w:g.minimumStaffEntriesWidth||0, d:Math.max(1/16, sm.Duration?sm.Duration.RealValue:1), multi:!!g.isReducedToMultiRest||!!sm.isReducedToMultiRest}); }
+  BW.nat=rows.map(r=>r.w);
+  const sc=(S.barScale||100)/100, ns=(S.noteSpace||100)/100;
+  if(S.barWidth!=="osmd") for(const r of rows){ if(r.multi) continue; const b=barNeed(r.t, r.d); r.ideal=b.ideal*ns; r.need=Math.max(r.ideal, b.lyr); }
+  let T=0;
+  if(S.barWidth==="uniform"){ const per=rows.filter(r=>r.need && !r.sm.ImplicitMeasure).map(r=>r.need/r.d).sort((a,b)=>a-b); if(per.length) T=per[Math.floor(per.length/2)]; }
+  BW.T=T;
+  for(const r of rows){
+    let w=r.w;
+    if(r.need){ w = S.barWidth==="uniform" ? Math.max(T*r.d*(r.sm.ImplicitMeasure?0.8:1), r.need)*sc : r.need*sc; }
+    else if(!r.multi) w=r.w*sc;
+    const u=BW.user[r.i]; if(u) w*=u;
+    for(const g of r.t) if(g) g.minimumStaffEntriesWidth=w;
+  }
+}
 // lyrics in Arial Bold, measured that way too so the spacing fits (lyric labels are recognised by their colour tag)
 const LYR_TAG="#010101";
 try{ let D=opensheetmusicdisplay.VexFlowMusicSheetDrawer.prototype; const own=(P,k)=>{ while(P && !Object.prototype.hasOwnProperty.call(P,k)) P=Object.getPrototypeOf(P); return P; };
@@ -831,7 +891,8 @@ function drawBrackets(){
 }
 /* render with the chosen music font: the glyph table is found after the first drawing, then swapped */
 function engrave(){
-  try{ osmd.EngravingRules.SheetMaximumWidth = S.mode==="horizontal" ? 4e6 : 32767; }catch(e){} // one line, however long the piece
+  try{ osmd.EngravingRules.SheetMaximumWidth = S.mode==="horizontal" ? 4e6 : 32767; }catch(e){}
+  try{ osmd.EngravingRules.LastSystemMaxScalingFactor = S.mode==="horizontal" ? 1 : 1.4; }catch(e){} // the single line was being stretched 40% to "fill" the sheet // one line, however long the piece
   try{ const f=(S.noteSpace||100)/100, R=osmd.EngravingRules; R.VoiceSpacingMultiplierVexflow=0.85*f; R.VoiceSpacingAddendVexflow=3*f;
     // let a bar grow as much as its lyrics need, with a little air between words
     R.MaximumLyricsElongationFactor=3; R.HorizontalBetweenLyricsDistance=0.45; R.LyricOverlapAllowedIntoNextMeasure=1; }catch(e){}
@@ -949,6 +1010,7 @@ async function loadScore(src, name, fromSample){
   $("scoreLab").textContent = fromSample ? "Exemplo carregado" : (sh.ComposerString||"Partitura");
   buildInstList();
   try{ loadMeta(); }catch(e){}
+  loadBarW();
   stop(); pos=0;
   render();
   if(!fromSample){ try{ localStorage.setItem("pr.last", JSON.stringify({kind:"xml"})); }catch(e){} try{ if(typeof src==="string" && src.length<4e6){ localStorage.setItem("pr.score",src); localStorage.setItem("pr.scoreName",name||title);} }catch(e){} }
@@ -1666,6 +1728,9 @@ seg("segChord","chord",()=>render());
 seg("segChordSpace","chordSpace",()=>render());
 seg("segLyric","lyricFont",()=>render());
 seg("segLyrLines","lyricLines",()=>render());
+seg("segBarW","barWidth",()=>render());
+let rbs; rng("barScale","barScale","barScaleOut",v=>v+"%",()=>{ clearTimeout(rbs); rbs=setTimeout(render,300); });
+$("barReset").onclick=()=>{ if(!Object.keys(BW.user).length){ toast("Nenhum compasso foi ajustado à mão."); return; } BW.user={}; saveBarW(); render(); toast("Larguras ajustadas à mão desfeitas."); };
 let rns; rng("noteSpace","noteSpace","noteSpaceOut",v=>v+"%",()=>{ clearTimeout(rns); rns=setTimeout(render,300); });
 S.emptyStaves=S.hideEmpty?"hide":"show"; seg("segEmpty","emptyStaves",()=>{ S.hideEmpty=S.emptyStaves==="hide"; save(); render(); });
 S.vRest=S.hideVoiceRests===false?"show":"hide"; seg("segVRest","vRest",async()=>{ S.hideVoiceRests=S.vRest==="hide"; save(); if(xmlDoc&&!pdfMode) await reloadQuiet(); });
@@ -2953,7 +3018,30 @@ async function reloadFromDoc(){
 }
 async function undo(){ if(!undoStack.length||editing) return; redoStack.push(new XMLSerializer().serializeToString(xmlDoc)); xmlDoc=new DOMParser().parseFromString(undoStack.pop(),"application/xml"); selKey=null; sel=null; await reloadFromDoc(); }
 async function redo(){ if(!redoStack.length||editing) return; undoStack.push(new XMLSerializer().serializeToString(xmlDoc)); xmlDoc=new DOMParser().parseFromString(redoStack.pop(),"application/xml"); selKey=null; sel=null; await reloadFromDoc(); }
-function afterRender(){ try{ buildItems(); }catch(e){ console.error(e); items=[]; } if(editMode) reselect(); }
+function afterRender(){ try{ buildItems(); }catch(e){ console.error(e); items=[]; } if(editMode) reselect(); drawBarHandles(); }
+/* edit mode: drag the bar line at the end of a bar to make that bar wider or narrower */
+function drawBarHandles(){
+  const box=$("barh"); if(!box) return; box.textContent="";
+  if(!editMode||pdfMode||!loaded||!srcM.length) return;
+  const ox=host.offsetLeft, oy=host.offsetTop;
+  srcM.forEach((m,i)=>{
+    if(m.owner!==i) return; const x0=m.sx!==undefined?m.sx:m.gx0, x1=m.bx1!==undefined?m.bx1:m.gx1; if(x0===undefined||x1===undefined) return;
+    const last=i+(m.span||1)-1, top=(m.y||0)-10, h=(m.h||80)+20;
+    const el=document.createElement("div"); el.className="bh"+(BW.user[i]?" set":""); el.style.left=(ox+x1)+"px"; el.style.top=(oy+top)+"px"; el.style.height=h+"px";
+    const tip=document.createElement("span"); tip.className="tip"; const pct=()=>Math.round((BW.user[i]||1)*100);
+    tip.textContent=`Compasso ${m.num}${last>i?"–"+srcM[last].num:""} · ${pct()}%`; el.append(tip);
+    el.title="Arraste para mudar a largura deste compasso. Duplo clique volta ao normal.";
+    let sx=null, wpx=Math.max(8,x1-x0), f=1;
+    el.addEventListener("pointerdown",e=>{ e.preventDefault(); e.stopPropagation(); sx=e.clientX; f=1; el.setPointerCapture(e.pointerId); el.classList.add("drag"); });
+    el.addEventListener("pointermove",e=>{ if(sx===null) return; const dx=e.clientX-sx; f=Math.max(0.25,(wpx+dx)/wpx); el.style.transform=`translateX(${(wpx*f-wpx)}px)`;
+      tip.textContent=`Compasso ${m.num} · ${Math.round((BW.user[i]||1)*f*100)}%`; });
+    const end=e=>{ if(sx===null) return; sx=null; el.classList.remove("drag"); if(Math.abs(f-1)<0.02){ el.style.transform=""; return; }
+      const u=Math.max(0.3,Math.min(5,(BW.user[i]||1)*f)); if(Math.abs(u-1)<0.03) delete BW.user[i]; else BW.user[i]=+u.toFixed(3); saveBarW(); render(); };
+    el.addEventListener("pointerup",end); el.addEventListener("pointercancel",end);
+    el.addEventListener("dblclick",e=>{ e.stopPropagation(); if(BW.user[i]){ delete BW.user[i]; saveBarW(); render(); } });
+    box.append(el);
+  });
+}
 
 async function saveXml(){
   if(!xmlDoc){ toast("Nada para salvar."); return; }
@@ -2978,7 +3066,7 @@ function setEdit(on){
   const varWas=VAR.on||(!on&&S.hideEmpty);
   editMode=on; stage.classList.toggle("editing",on); $("ebar").hidden=!on; $("btnEdit").classList.toggle("on",on);
   if(varWas && S.hideEmpty && !pdfMode){ render(); }
-  if(on){ requestAnimationFrame(()=>{ frame(true); buildItems(); renderEbar(); }); } else { setSel(null); }
+  if(on){ requestAnimationFrame(()=>{ frame(true); buildItems(); renderEbar(); drawBarHandles(); }); } else { setSel(null); drawBarHandles(); }
   requestAnimationFrame(()=>frame(true));
 }
 $("btnEdit").onclick=()=>setEdit(!editMode);
