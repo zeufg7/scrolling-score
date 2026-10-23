@@ -193,6 +193,7 @@ body.rec .tline{display:none}
 .jorder.man{border-color:var(--amber)}
 .jstat{font-size:12px;color:var(--mute)}
 .mini.on{border-color:var(--amber);color:var(--amber)}
+.sprow{display:grid;grid-template-columns:1fr;gap:6px;margin:8px 0 2px}.sprow label{display:flex!important;justify-content:flex-start!important;align-items:center;gap:8px;margin:0!important;font-size:12.5px;color:var(--fg2,#B8C0CA)}.sprow input[type=number]{width:70px;background:#1F2631;border:1px solid var(--line);border-radius:6px;color:var(--fg);padding:4px 6px;font:inherit}
 #barh{position:absolute;left:0;top:0;z-index:4;pointer-events:none}
 #barh .bh{position:absolute;width:14px;margin-left:-7px;cursor:ew-resize;pointer-events:auto;touch-action:none}
 #barh .bh::after{content:"";position:absolute;left:5px;top:0;bottom:0;width:4px;border-radius:2px;background:var(--amber);opacity:0;transition:opacity .12s}
@@ -478,7 +479,12 @@ body.rec .stage{cursor:none}
       <div class="field"><span class="lbl">Largura dos compassos</span>
         <div class="seg" id="segBarW"><button data-v="uniform" aria-pressed="true">Uniforme</button><button data-v="dorico" aria-pressed="false">Proporcional</button><button data-v="osmd" aria-pressed="false">Antigo</button></div>
         <label for="barScale" style="margin-top:8px">Largura média <output id="barScaleOut">100%</output></label><input type="range" id="barScale" min="50" max="200" step="5" value="100">
-        <p class="hint">O espaçamento segue as regras do Dorico (semínima = 4 espaços, cada valor dobrado ×√2, mínimo 1,6 espaço, e a letra abre o compasso quando precisa). Uniforme: todos os compassos ficam com a largura média e só crescem os que precisam. Proporcional: cada compasso do tamanho do seu conteúdo. Antigo: o espaçamento de antes. No modo Editar, arraste a barra de um compasso para alargar ou estreitar só ele; duplo clique volta ao normal.</p>
+        <div class="sprow"><label>Espaço da semínima <input type="number" id="spQ" min="2" max="10" step="0.25"> espaços</label>
+          <label>Mínimo para notas curtas <input type="number" id="spMin" min="0.5" max="5" step="0.1"> espaços</label>
+          <label>Proporção <input type="number" id="spRatio" min="1.1" max="2" step="0.01"></label>
+          <label class="check"><input type="checkbox" id="spLyr"> Abrir espaço para a letra</label>
+          <button class="mini wide" id="spDef" title="Semínima 4 1/2, mínimo 1 3/5, proporção 1,41 (√2), espaço para a letra">Padrão Dorico</button></div>
+        <p class="hint">Como no Note Spacing do Dorico: cada valor dobrado ganha a proporção (√2 ≈ 1,41) de espaço, nenhuma nota fica abaixo do mínimo, e a letra abre o compasso quando precisa. Uniforme: todos os compassos ficam com a largura média e só crescem os que precisam. Proporcional: cada compasso do tamanho do seu conteúdo. Antigo: o espaçamento de antes. No modo Editar, arraste a barra de um compasso para alargar ou estreitar só ele; duplo clique volta ao normal.</p>
         <button class="mini wide" id="barReset" style="margin-top:6px">Desfazer larguras ajustadas à mão</button></div>
       <div class="field"><label for="noteSpace">Espaço entre as notas <output id="noteSpaceOut">100%</output></label><input type="range" id="noteSpace" min="70" max="220" step="5" value="100">
         <p class="hint">Se sílabas da letra encostarem umas nas outras, aumente. Os compassos alargam proporcionalmente.</p></div>
@@ -698,7 +704,7 @@ const audio=$("audio");
 
 /* ---------- settings ---------- */
 const S = { mode:"horizontal", bg:"zeufg", zoom:100, playhead:33, hl:true, ov:true, ovSub:"ANÁLISE DE PARTITURA",
-  offset:0, tl:true, lineH:100, lineW:3, lineY:0, lineX:0, tapEvery:1, vid:"br", vidSize:28, volA:100, volS:60, volC:50, synth:true, click:false, rate:100, loop:false, loopA:1, loopB:4, hideEmpty:false, hideVoiceRests:true, mfont:"maestro", chord:"arial", head:100, glyph:100, chordSpace:"notes", lyricFont:"arial", lyricLines:"hide", noteSpace:100, barWidth:"uniform", barScale:100 };
+  offset:0, tl:true, lineH:100, lineW:3, lineY:0, lineX:0, tapEvery:1, vid:"br", vidSize:28, volA:100, volS:60, volC:50, synth:true, click:false, rate:100, loop:false, loopA:1, loopB:4, hideEmpty:false, hideVoiceRests:true, mfont:"maestro", chord:"arial", head:100, glyph:100, chordSpace:"notes", lyricFont:"arial", lyricLines:"hide", noteSpace:100, barWidth:"uniform", barScale:100, spQ:4.5, spMin:1.6, spRatio:1.41, spLyr:true };
 try { Object.assign(S, JSON.parse(localStorage.getItem("pr.settings")||"{}")); } catch(e){}
 const save = () => { try { localStorage.setItem("pr.settings", JSON.stringify(S)); } catch(e){} };
 
@@ -771,8 +777,8 @@ try{ let P=opensheetmusicdisplay.VexFlowMusicSheetCalculator.prototype; while(P 
 /* Dorico's note spacing (from its Engraving Options): a crotchet gets 4 staff spaces, each doubling of the duration
    multiplies the space by sqrt(2), nothing gets less than 1.6 spaces; lyrics push the bar open when they need more
    (0.75 space between syllables, 1 space for a hyphen); 0.5 space before the bar line, 1.5 after it */
-const DSP={ crotchet:4, ratio:Math.SQRT2, floor:1.6, lyrGap:0.75, hyph:1, before:0.5, after:1.5 };
-const dSpace=d=>Math.max(DSP.floor, DSP.crotchet*Math.pow(DSP.ratio, Math.log2(Math.max(1e-4,d)/0.25)));
+const DSP={ lyrGap:0.75, hyph:1, before:0.5, after:1.5 };
+const dSpace=d=>Math.max(+S.spMin||1.6, (+S.spQ||4.5)*Math.pow(+S.spRatio||1.41, Math.log2(Math.max(1e-4,d)/0.25)));
 function barNeed(t, dur){
   const on=new Map(); const lyr={};
   for(const g of t){ if(!g||!g.staffEntries) continue; const vis=!(g.ParentStaff&&g.ParentStaff.ParentInstrument&&g.ParentStaff.ParentInstrument.Visible===false); if(!vis) continue;
@@ -785,7 +791,7 @@ function barNeed(t, dur){
   ts.forEach((x,k)=>{ const nx=k+1<ts.length?ts[k+1]:dur; const d=Math.max(1e-4, nx-x); const own=on.get(x); w+=dSpace(Math.min(d, isFinite(own)?Math.max(d,own):d)); });
   if(!ts.length) w=dSpace(dur);
   let lw=0; for(const k in lyr){ const L=lyr[k].sort((a,b)=>a.ts-b.ts); let s=0; L.forEach((e,j)=>{ s+=(j===0||j===L.length-1)?e.w*0.5+e.w*0.5:e.w; if(j) s+=DSP.lyrGap+(L[j-1].hy?DSP.hyph:0); }); lw=Math.max(lw,s); }
-  return { ideal:w+DSP.before+DSP.after, lyr:lw?lw+DSP.before+DSP.after:0 };
+  return { ideal:w+DSP.before+DSP.after, lyr:(lw&&S.spLyr!==false)?lw+DSP.before+DSP.after:0 };
 }
 function shapeBarWidths(gms){
   const ML=gms.MeasureList||[], SM=gms.ParentMusicSheet.SourceMeasures, idx=new Map(SM.map((m,i)=>[m,i]));
@@ -1730,6 +1736,12 @@ seg("segLyric","lyricFont",()=>render());
 seg("segLyrLines","lyricLines",()=>render());
 seg("segBarW","barWidth",()=>render());
 let rbs; rng("barScale","barScale","barScaleOut",v=>v+"%",()=>{ clearTimeout(rbs); rbs=setTimeout(render,300); });
+(function(){ let tm; const go=()=>{ clearTimeout(tm); tm=setTimeout(render,350); };
+  const num=(id,key,lo,hi)=>{ const el=$(id); el.value=S[key]; el.addEventListener("change",()=>{ let v=parseFloat(String(el.value).replace(",",".")); if(!isFinite(v)) v=S[key]; v=Math.max(lo,Math.min(hi,v)); S[key]=v; el.value=v; save(); go(); }); };
+  num("spQ","spQ",2,10); num("spMin","spMin",0.5,5); num("spRatio","spRatio",1.1,2);
+  const lc=$("spLyr"); lc.checked=S.spLyr!==false; lc.addEventListener("change",()=>{ S.spLyr=lc.checked; save(); go(); });
+  $("spDef").onclick=()=>{ S.spQ=4.5; S.spMin=1.6; S.spRatio=1.41; S.spLyr=true; $("spQ").value=4.5; $("spMin").value=1.6; $("spRatio").value=1.41; lc.checked=true; save(); render(); toast("Espaçamento do Dorico: semínima 4 1/2, mínimo 1 3/5, proporção 1,41."); };
+})();
 $("barReset").onclick=()=>{ if(!Object.keys(BW.user).length){ toast("Nenhum compasso foi ajustado à mão."); return; } BW.user={}; saveBarW(); render(); toast("Larguras ajustadas à mão desfeitas."); };
 let rns; rng("noteSpace","noteSpace","noteSpaceOut",v=>v+"%",()=>{ clearTimeout(rns); rns=setTimeout(render,300); });
 S.emptyStaves=S.hideEmpty?"hide":"show"; seg("segEmpty","emptyStaves",()=>{ S.hideEmpty=S.emptyStaves==="hide"; save(); render(); });
