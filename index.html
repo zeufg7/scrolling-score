@@ -328,6 +328,21 @@ body.rec .stage{cursor:none}
   .hide-sm{display:none}
 }
 @media (prefers-reduced-motion:reduce){.drawer{transition:none}}
+
+/* Modo Cinema */
+.cinewrap{display:none}
+.stage.cine{background:#07090C;cursor:grab}
+.stage.cine.dragging{cursor:grabbing}
+.stage.cine #track,.stage.cine .playline,.stage.cine .fade,.stage.cine .sticky,.stage.cine .ov,.stage.cine .vidbox{visibility:hidden!important}
+.stage.cine #cineCanvas{display:block}
+#cineCanvas{display:none;position:absolute;z-index:6;box-shadow:0 0 0 1px #232A35,0 18px 60px rgba(0,0,0,.5)}
+body.rec .stage.cine #cineCanvas{box-shadow:none}
+.btn.on{border-color:var(--amber);color:var(--amber)}
+.caplist{display:flex;flex-direction:column;gap:10px}
+.cap{display:flex;flex-direction:column;gap:6px;padding:10px;border:1px solid #232A35;border-radius:6px;background:#11151B}
+.cap textarea{width:100%;box-sizing:border-box;resize:vertical;background:#0D1015;color:#EDEFF2;border:1px solid #3A4352;border-radius:4px;padding:6px 8px;font:14px/1.35 'IBM Plex Sans',Arial,sans-serif}
+.caprow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:#B8C0CA}
+.caprow input{width:64px}
 </style>
 
 <div class="app">
@@ -348,6 +363,8 @@ body.rec .stage{cursor:none}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg><span>Ajustes</span></button>
       <button class="btn" id="btnEdit" title="Editar a partitura">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4"/></svg><span>Editar</span></button>
+      <button class="btn" id="btnCine" title="Modo Cinema: partitura vertical com ícones, transições e legendas (V)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="2"/><path d="M9 7.5h6M9 11h6M9 14.5h4"/><path d="M14.5 6v11" stroke-width="1.5"/></svg><span>Cinema</span></button>
       <button class="btn" id="btnExport" title="Exportar vídeo">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg><span>Exportar</span></button>
       <button class="btn" id="btnRec" title="Modo gravação (H)">
@@ -381,6 +398,7 @@ body.rec .stage{cursor:none}
     </div>
     <div class="sticky" id="sticky" hidden></div>
     <div class="playline" id="playline"></div>
+    <canvas id="cineCanvas" aria-label="Partitura no Modo Cinema"></canvas>
     <div class="fade l"></div><div class="fade r"></div>
     <div class="ov ov-handle" id="ovHandle"><span id="ovComp"></span><span id="ovArr"></span></div>
     <div class="ov ov-copy" id="ovCopy"></div>
@@ -455,6 +473,33 @@ body.rec .stage{cursor:none}
 <aside class="drawer" id="drawer" aria-label="Ajustes">
   <div class="dhead"><h2>Ajustes</h2><button class="ib" id="bClose" title="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
   <div class="dbody">
+    <section class="sec">
+      <h3>Modo Cinema</h3>
+      <label class="check"><input type="checkbox" id="chkCine"> Ligar o Modo Cinema (V)</label>
+      <p class="hint">Partitura em formato de vídeo vertical: ícones dos instrumentos, só as pautas que estão tocando entram e saem com transição, as notas acendem em âmbar com brilho. Vale também para o vídeo exportado.</p>
+      <div class="field"><span class="lbl">Quadro na tela</span>
+        <div class="seg" id="segCFrame"><button data-v="v" aria-pressed="true">9:16</button><button data-v="h" aria-pressed="false">16:9</button><button data-v="fill" aria-pressed="false">Tela inteira</button></div></div>
+      <div class="field"><span class="lbl">Pautas</span>
+        <div class="seg" id="segCHide"><button data-v="play" aria-pressed="true">Só as que tocam</button><button data-v="all" aria-pressed="false">Todas</button></div>
+        <p class="hint">Só as que tocam: cada instrumento aparece um pouco antes de entrar e sai depois de parar; as outras pautas deslizam para abrir ou fechar espaço.</p></div>
+      <div class="field"><span class="lbl">Fundo</span>
+        <div class="seg" id="segCBg"><button data-v="fog" aria-pressed="true">Névoa</button><button data-v="plain" aria-pressed="false">Liso</button></div></div>
+      <div class="field"><label for="cPh">Posição da agulha <output id="cPhOut">62%</output></label><input type="range" id="cPh" min="35" max="80" step="1" value="62"></div>
+      <div class="field"><label for="cSize">Tamanho máximo da pauta <output id="cSizeOut">100%</output></label><input type="range" id="cSize" min="60" max="160" step="5" value="100">
+        <p class="hint">Com muitos instrumentos a partitura diminui sozinha para caber no quadro.</p></div>
+      <div class="field"><label for="cDim">Escurecer o que ainda vai tocar <output id="cDimOut">45%</output></label><input type="range" id="cDim" min="0" max="80" step="5" value="45"></div>
+      <label class="check"><input type="checkbox" id="chkCIcons" checked> Ícones dos instrumentos</label>
+      <label class="check"><input type="checkbox" id="chkCGlow" checked> Brilho quando a nota começa</label>
+      <label class="check"><input type="checkbox" id="chkCTrail" checked> Rastro âmbar nas notas longas</label>
+      <label class="check"><input type="checkbox" id="chkCTitle" checked> Título no rodapé</label>
+      <label class="check"><input type="checkbox" id="chkCMeas" checked> Número do compasso</label>
+      <div class="field"><label for="cHandle">Assinatura no topo</label><input type="text" id="cHandle" class="num" style="width:100%" maxlength="40"></div>
+      <div class="field"><span class="lbl">Legendas</span>
+        <div id="capList" class="caplist"></div>
+        <button class="btn" id="capAdd" style="margin-top:8px">Adicionar legenda no compasso atual</button>
+        <p class="hint">O texto aparece e some com fade, embaixo da partitura. Escreva *assim* para destacar uma palavra em âmbar.</p></div>
+    </section>
+
     <section class="sec">
       <h3>Visualização</h3>
       <div class="field"><span class="lbl">Rolagem</span>
@@ -632,6 +677,7 @@ body.rec .stage{cursor:none}
             <button class="fmt" data-v="r" aria-pressed="false"><i class="shape reels" style="aspect-ratio:9/16;height:40px"></i><b>Reels</b><span>9:16 · Instagram</span></button>
           </div>
         </div>
+        <p class="hint" id="xpCineHint" hidden>Modo Cinema ligado: o vídeo sai com o layout cinema (ícones, transições, brilho e legendas). Formato, efeitos e legendas ficam em Ajustes › Modo Cinema.</p>
         <div class="field"><span class="lbl">Trecho</span>
           <div class="seg" id="segRange"><button data-v="all" aria-pressed="true">Música inteira</button><button data-v="loop" aria-pressed="false">Só o loop</button></div>
         </div>
@@ -1042,12 +1088,12 @@ function render(){
   if(pdfMode&&PDF){ $("segMode").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v==="horizontal"))); return renderPdf(); }
   $("loading").hidden=false;
   const horiz = S.mode==="horizontal";
-  osmd.setOptions({ renderSingleHorizontalStaffline: horiz });
+  osmd.setOptions({ renderSingleHorizontalStaffline: horiz, drawPartNames: !cineActive(), drawPartAbbreviations: !cineActive() });
   stage.classList.toggle("horizontal",horiz); stage.classList.toggle("vertical",!horiz);
   host.style.width = horiz ? "" : (stage.clientWidth)+"px";
   osmd.zoom = S.zoom/100 * (stage.clientWidth<600?0.75:1);
   return new Promise(res=>requestAnimationFrame(()=>{ try{ for(const o of VAR.list){ for(const b of o.backends||[]) b.__keep=false; if(o.node.parentNode===host) o.node.remove(); } VAR.on=false; VAR.list=[]; engrave(); buildTimeline(); prepareVariants(); afterRender(); }catch(e){ console.error(e); toast("A partitura não pôde ser desenhada com essas opções."); }
-    $("loading").hidden=true; lastIdx=-1; clearHl(); seekTo(pos,true); res(); }));
+    $("loading").hidden=true; lastIdx=-1; clearHl(); seekTo(pos,true); if(S.cine) cinePrepare(); else CINE.ready=false; res(); }));
 }
 
 function buildTimeline(){
@@ -1302,7 +1348,7 @@ function switchVariant(k){
   clearHl(); unrollCore(JM.perf); lastIdx=-1; VAR.cur=k; try{ drawJumpMarks(); }catch(e){}
 }
 function prepareVariants(){
-  if(!S.hideEmpty || editMode || pdfMode || S.mode!=="horizontal" || !osmd.Sheet) return;
+  if(S.cine || !S.hideEmpty || editMode || pdfMode || S.mode!=="horizontal" || !osmd.Sheet) return;
   const sh=osmd.Sheet, base=sh.Instruments.map(i=>i.Visible!==false), nI=base.length;
   if(base.filter(Boolean).length<2) return;
   const play=playingByMeasure(), P=measures.length; if(!P) return;
@@ -1573,7 +1619,7 @@ function placeBar(p){
   bar.style.width=S.lineW+"px"; bar.style.height=h+"px";
   bar.style.transform=`translate3d(${x}px,${y}px,0)`;
 }
-function loop(){ frame(false); syncCams(); tlTick(); requestAnimationFrame(loop); }
+function loop(){ frame(false); try{ cineFrame(); }catch(e){ console.error(e); } syncCams(); tlTick(); requestAnimationFrame(loop); }
 
 function schedule(t){
   if(!ctx) return;
@@ -1650,12 +1696,16 @@ stage.addEventListener("pointerdown",e=>{
       e.preventDefault(); return;
     }
   }
+  if(cineActive()){ if(e.target.closest(".ebar")) return; down={x:e.clientX,y:e.clientY,moved:false,cine:true,px:posAt(clockNow()).x}; return; }
   down={x:e.clientX,y:e.clientY,moved:false,start:null};
   if(S.mode==="horizontal"){ const m=/translate3d\(([-\d.]+)px/.exec(track.style.transform); down.start=m?parseFloat(m[1]):0; }
 });
 window.addEventListener("pointermove",e=>{
   if(itemDrag){ const dx=e.clientX-itemDrag.x, dy=e.clientY-itemDrag.y; if(!itemDrag.moved&&Math.hypot(dx,dy)<3) return; itemDrag.moved=true; stage.classList.add("dragging-item");
     const z=unitPx()/10, it=itemDrag.it; it.pel.setAttribute("relative-x",String(Math.round((itemDrag.rx+dx/z)*10)/10)); it.pel.setAttribute("relative-y",String(Math.round((itemDrag.ry-dy/z)*10)/10)); refreshSelBox(); return; }
+  if(down&&down.cine){ const dx=e.clientX-down.x; if(!down.moved && Math.abs(dx)<5) return;
+    if(!down.moved){ down.moved=true; down.wasPlaying=playing; if(playing) stop(); stage.classList.add("dragging"); }
+    pos=timeAtX(down.px-dx/Math.max(0.05,CINE.cssK||1), pos); clearHl(); frame(true); return; }
   if(!down||S.mode!=="horizontal") return;
   const dx=e.clientX-down.x;
   if(!down.moved && Math.abs(dx)<5) return;
@@ -1670,6 +1720,7 @@ window.addEventListener("pointerup",e=>{
     const hr=host.getBoundingClientRect(); selectAt(e.clientX-hr.left, e.clientY-hr.top); return; }
   if(!down) return;
   const d=down; down=null; stage.classList.remove("dragging");
+  if(d.cine){ if(d.moved){ seekTo(pos); if(d.wasPlaying) play(); } return; }
   if(d.moved){ dragX=null; seekTo(pos); if(d.wasPlaying) play(); return; }
   // click: jump to nearest event
   const r=host.getBoundingClientRect(); const cx=e.clientX-r.left, cy=e.clientY-r.top;
@@ -1843,6 +1894,7 @@ document.addEventListener("keydown",e=>{
   else if(k==="h"||k==="H") setRec(!document.body.classList.contains("rec"));
   else if(k==="Escape"){ if(JT){ armTool(null); return; } if(document.body.classList.contains("rec")) setRec(false); openDrawer(false); }
   else if(k==="f"||k==="F") fullscreen();
+  else if(k==="v"||k==="V") setCine(!S.cine);
   else if(k==="m"||k==="M") mark();
   else if(k==="t"||k==="T"){ e.preventDefault(); tap(); }
   else if(k==="k"||k==="K") showTl(!S.tl);
@@ -2350,6 +2402,11 @@ function coverDraw(g, v, x, y, w, h){
 }
 
 function drawExportFrame(g, L, R, t, opts){
+  if(cineActive() && (opts.content||"all")!=="cams"){
+    cineDraw(g, L.W, L.H, t, {reels:!!(XP&&XP.f&&XP.f.key==="r"), text:opts.text, meas:S.xMeas!==false, chroma:opts.content==="score"?(S.xScoreBg==="black"?"#000000":null):null});
+    if(opts.guides && L.W<L.H && XP && XP.f.key==="r"){ g.save(); g.setLineDash([14,10]); g.lineWidth=3; g.strokeStyle="rgba(224,164,88,.7)"; g.fillStyle="rgba(224,164,88,.10)"; g.fillRect(0,0,L.W,220); g.fillRect(0,L.H-420,L.W,420); g.fillRect(L.W-140,220,140,L.H-640); g.strokeRect(1.5,220,L.W-141.5,L.H-640); g.restore(); }
+    return;
+  }
   if(VAR.on && XP && XP.Rv){ const k=VAR.byPerf[measureAt(Math.max(0,t))]; if(k!==undefined){ if(k!==VAR.cur) switchVariant(k); R=XP.Rv[k]||R; } }
   const st=getComputedStyle(document.documentElement);
   const stageC=st.getPropertyValue("--stage").trim()||"#0D1015";
@@ -2510,6 +2567,7 @@ function xpScale(){ return Math.min(4, (XP.L.baseBandH*0.86)/XP.sysH) * xpParams
 let rasterT=null;
 function xpRaster(now){
   clearTimeout(rasterT);
+  if(cineActive()){ const go=async()=>{ XP.R={cine:true}; await cineWarm(clockNow(), XP.f.W, XP.f.H); }; if(now) return go(); go(); return; }
   const go=async()=>{ const sc=xpScale(); if(XP.R && Math.abs(XP.R.scale-sc)<1e-3) return; const key=++XP.rk; try{
       if(VAR.on){ const cur=VAR.cur, Rv=[]; for(let k=0;k<VAR.list.length;k++){ switchVariant(k); Rv[k]=await rasterScore(sc); } switchVariant(cur); if(key===XP.rk && XP){ XP.Rv=Rv; XP.R=Rv[cur]; } }
       else { const R=await rasterScore(sc); if(key===XP.rk && XP){ XP.R=R; XP.Rv=null; } }
@@ -2531,6 +2589,9 @@ function syncXpControls(){
   $("xVideoBox").hidden=!(isVideo&&audioReady) || lo;
   $("xVideoCtl").hidden=!xpWithVideo();
   $("xScoreYField").hidden=lo; $("xBandField").hidden=lo;
+  const ci=cineActive(); $("xpCineHint").hidden=!ci;
+  if(ci){ $("xLayoutBox").hidden=true; $("xVideoBox").hidden=true; for(const id of ["xSize","xScoreY","xBand"]) $(id).closest(".field").hidden=true; $("xSize").closest(".field").previousElementSibling.hidden=true; $("segContent").closest(".field").hidden=true; }
+  else { for(const id of ["xSize"]) $(id).closest(".field").hidden=false; $("xSize").closest(".field").previousElementSibling.hidden=false; $("segContent").closest(".field").hidden=false; }
 }
 async function openExport(){
   if(!loaded){ toast("Abra uma partitura primeiro."); return; }
@@ -2594,6 +2655,7 @@ async function recordExport(){
     rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
     const done=new Promise(res=>rec.onstop=res);
     // pre-roll: start playing a little earlier and begin recording exactly at tA, so separate exports line up frame for frame
+    if(cineActive()){ $("xpMsg").textContent="Preparando a partitura do Modo Cinema…"; await cineWarm(Math.max(timeRange()[0], tA-0.8), f.W, f.H); }
     seekTo(Math.max(timeRange()[0], tA-0.8)); drawExportFrame(xpg,L,R,clockNow(),{video:withVideo,text,content}); play();
     $("xpMsg").textContent="Preparando o início exato…";
     await new Promise(res=>{ let last=null; const w=()=>{ if(XP.cancel){ res(); return; } const t=clockNow(); drawExportFrame(xpg,L,R,t,{video:withVideo,text,content}); if(t>=tA-0.002 && last!==null && t>last){ res(); return; } last=t; requestAnimationFrame(w); }; requestAnimationFrame(w); });
@@ -3077,7 +3139,7 @@ function setEdit(on){
   if(on&&!xmlDoc){ toast("Abra uma partitura MusicXML para editar."); return; }
   const varWas=VAR.on||(!on&&S.hideEmpty);
   editMode=on; stage.classList.toggle("editing",on); $("ebar").hidden=!on; $("btnEdit").classList.toggle("on",on);
-  if(varWas && S.hideEmpty && !pdfMode){ render(); }
+  if((varWas && S.hideEmpty && !pdfMode) || (S.cine && !pdfMode)){ render(); }
   if(on){ requestAnimationFrame(()=>{ frame(true); buildItems(); renderEbar(); drawBarHandles(); }); } else { setSel(null); drawBarHandles(); }
   requestAnimationFrame(()=>frame(true));
 }
@@ -4135,6 +4197,454 @@ function autoSync(){
 }
 $("bAutoSync").onclick=autoSync; $("tlAuto").onclick=autoSync;
 $("bSyncUndo").onclick=()=>{ if(syncBackup===null) return; try{ sync=JSON.parse(syncBackup); }catch(e){ sync=[]; } syncBackup=null; saveSync(); renderSync(); TL.dirty=true; $("bSyncUndo").hidden=true; toast("Sincronia anterior restaurada."); };
+
+/* ---------- Modo Cinema: vertical score film with instrument icons, staves that come and go, glowing notes ----------
+   One engraving of every visible instrument is cut into horizontal bands (one per instrument). Each band is drawn on a
+   canvas on its own, so staves can fade in and out and slide into place while the music plays. The same drawing is used
+   on screen and in exported videos. */
+const CI={ amber:"#E0A458", ink:"#EDEFF2", ink2:"#B8C0CA", ink3:"#9AA3AE", line:"#3A4352", line2:"#232A35", bg:"#0D1015", card:"#161B23" };
+const CINE={ ready:false, ver:0, rows:[], rowOf:new Map(), secs:[], secOf:[], act:[], R:null, tiles:new Map(), queue:[], busy:0, focus:0, clock:0, lastK:1, maxDur:4, fog:null, L:null, T:null, caps:[] };
+const CDEF={ cine:false, cFrame:"v", cPh:62, cSize:100, cHide:true, cBg:"fog", cGlow:true, cTrail:true, cIcons:true, cDim:45, cHandle:"@o_zeufg", cTitle:true, cMeas:true };
+for(const k in CDEF) if(S[k]===undefined) S[k]=CDEF[k];
+const cineActive=()=>!!(S.cine && loaded && !pdfMode && !editMode);
+const clamp01=v=>v<0?0:v>1?1:v;
+const ease=v=>{ v=clamp01(v); return v*v*(3-2*v); };
+const lerp=(a,b,f)=>a+(b-a)*f;
+
+/* instrument icons: thin line drawings on a 24 grid */
+const ICONS={
+  violin:{rot:-40, s:1.28, p:["M12 10.2c-2.6 0-3.4 1.6-2.9 3.1.3.9-.6 1.3-.6 2.6 0 2.5 1.6 4.3 3.5 4.3s3.5-1.8 3.5-4.3c0-1.3-.9-1.7-.6-2.6.5-1.5-.3-3.1-2.9-3.1z","M12 10.2V3.4","M12 3.4c0-1 1-1.5 1.7-.9","M10.8 16.4h2.4","M3.2 18.2L21 12.6"]},
+  cello:{rot:0, s:1.08, p:["M12 7.6c-3.3 0-4.3 2-3.7 3.9.4 1.1-.8 1.6-.8 3.3 0 3.1 2 5.3 4.5 5.3s4.5-2.2 4.5-5.3c0-1.7-1.2-2.2-.8-3.3.6-1.9-.4-3.9-3.7-3.9z","M12 7.6V2.2","M12 2.2c0-.8.8-1.2 1.4-.7","M12 20.1v2.4","M10.6 15.8h2.8","M3.6 20.2L20.6 9.4"]},
+  flute:{rot:0, p:["M2.8 19.6L21.2 5.4","M7.6 15.9h.01","M10.4 13.7h.01","M13.2 11.5h.01","M16 9.4h.01","M18 7.2l1.3 1.6"]},
+  reed:{rot:0, p:["M5.6 17.2L19.6 3.6","M5.6 17.2c-.9.9-2.2 2.9-2.4 4.4 1.5-.2 3.5-1.5 4.4-2.4","M9.6 13.3h.01","M12.4 10.6h.01","M15.2 7.9h.01","M19.6 3.6l1.4-1.4"]},
+  horn:{rot:0, p:["M11 12.5m-5.6 0a5.6 5.6 0 1 0 11.2 0a5.6 5.6 0 1 0-11.2 0","M11 12.5m-2.4 0a2.4 2.4 0 1 0 4.8 0a2.4 2.4 0 1 0-4.8 0","M16.2 10.4c1.6-1.7 3.3-2.9 5.3-3.4v9.4c-2-.5-3.7-1.7-5.3-3.4","M5.6 12.5H2"]},
+  trumpet:{rot:0, p:["M2 12h12.6","M14.6 10.6L21.6 7.4v9.2l-7-3.2","M7.4 12V8.6M9.8 12V8.6M12.2 12V8.6","M5.6 12c0 2.7 1.6 3.9 3.8 3.9h5"]},
+  trombone:{rot:0, p:["M2.4 9.6h13.2M2.4 14.4h13.2","M2.4 9.6c-1.4 0-1.4 4.8 0 4.8","M15.6 8.8l6-3.4v13.2l-6-3.4","M8.4 9.6v4.8"]},
+  timpani:{rot:0, p:["M3.4 9.2h17.2c-.4 4.2-3.6 7-8.6 7s-8.2-2.8-8.6-7z","M7.2 15.2l-1.8 6M16.8 15.2l1.8 6","M14.6 7.6l3.6-5","M18.8 1.6m-1.2 0a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0-2.4 0"]},
+  drum:{rot:0, p:["M4 10c0-1.4 3.6-2.6 8-2.6s8 1.2 8 2.6-3.6 2.6-8 2.6S4 11.4 4 10z","M4 10v7.2c0 1.4 3.6 2.6 8 2.6s8-1.2 8-2.6V10","M9.4 6.4L5.4 2.2M14.6 6.4l4-4.2"]},
+  harp:{rot:0, p:["M6 2.8v18.8","M6 2.8c4 0 6.2 3.6 9.2 4.6 2 .7 3.8.3 4.6-.4","M19.8 7L6.8 21.2","M9 3.6v14.4M12 5.1v10.2M15 7.3v4.8"]},
+  keys:{rot:0, p:["M2.6 7.4h18.8v10.2H2.6z","M7.3 12.6v5M12 12.6v5M16.7 12.6v5","M5.6 7.4v5.2h2.4V7.4M10.8 7.4v5.2h2.4V7.4M15.6 7.4v5.2H18V7.4"]},
+  choir:{rot:0, p:["M8.6 9.6m-2.7 0a2.7 2.7 0 1 0 5.4 0a2.7 2.7 0 1 0-5.4 0","M3.2 20c0-3.3 2.4-5.4 5.4-5.4s5.4 2.1 5.4 5.4","M15.8 7.6m-2.3 0a2.3 2.3 0 1 0 4.6 0a2.3 2.3 0 1 0-4.6 0","M15.6 12.2c2.9 0 5.1 1.9 5.1 5"]},
+  guitar:{rot:-40, s:1.2, p:["M12 11.2c-2.4 0-3.2 1.5-2.7 2.9.3.8-.6 1.2-.6 2.4 0 2.4 1.5 4.1 3.3 4.1s3.3-1.7 3.3-4.1c0-1.2-.9-1.6-.6-2.4.5-1.4-.3-2.9-2.7-2.9z","M12 11.2V2.6","M11 2.6h2v-1.4h-2z","M12 15.8m-1 0a1 1 0 1 0 2 0a1 1 0 1 0-2 0"]},
+  note:{rot:0, p:["M8.6 18.4m-2.6 0a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0-5.2 0","M11.2 18.4V4.6l7 2.4"]},
+};
+const ICON_P={};
+function iconFor(name){
+  const s=String(name||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");
+  const T=(re)=>re.test(s);
+  if(T(/contrab|double bass|kontrabass|\bbass(o)?\b(?!.*(clar|guit|troм|trom|voice|voz))|\bcb\b|\bkb\b|\bcbs?\.|contrabaixo/)) return "cello";
+  if(T(/cell|violoncel|\bvc\b|\bvcs?\./)) return "cello";
+  if(T(/violin|violino|\bvln|\bvl\b|\bvn\b|viola|\bvla|bratsche|geige/)) return "violin";
+  if(T(/flaut|flute|flote|piccolo|ottavino|\bfl\b|\bfl\.|\bpicc/)) return "flute";
+  if(T(/oboe|obo|clar|bassoon|fagot|fagott|\bbsn|\bcl\b|\bcl\.|\bob\b|\bob\.|sax|corne ingl|english horn|cor anglais/)) return "reed";
+  if(T(/horn|trompa|corno|\bhn\b|\bhn\./)) return "horn";
+  if(T(/trumpet|trompet|tromba|\btpt|\btr\.|cornet|flugel/)) return "trumpet";
+  if(T(/trombon|posaun|\btbn|tuba|cimbasso|euphon|bombardino/)) return "trombone";
+  if(T(/timp|pauk/)) return "timpani";
+  if(T(/percus|drum|bateria|snare|caixa|cymbal|prato|bombo|tam-?tam|gong|triang|glock|xylo|marimba|vibra|\bperc/)) return "drum";
+  if(T(/harp|harpa|arpa|\bhp\b|\bhp\.|\bhrp/)) return "harp";
+  if(T(/piano|celest|organ|orgao|keyboard|teclado|synth|sintet|cravo|harpsich|cembalo|\bpno|\bpf\b|\bcel\b|\bcel\./)) return "keys";
+  if(T(/choir|coro|coral|chor|soprano|mezzo|alto|tenor|baritono|baritone|\bbaixo\b|voice|\bvoz|vocal|\bsatb|\bs\.?a\.?t\.?b/)) return "choir";
+  if(T(/guitar|violao|guitarra|gitarre|ukulele|cavaquinho|bandolim|mandolin|banjo/)) return "guitar";
+  return "note";
+}
+function drawIcon(g, name, cx, cy, size, color, glow){
+  const ic=ICONS[name]||ICONS.note; let ps=ICON_P[name]; if(!ps){ ps=ICON_P[name]=ic.p.map(d=>new Path2D(d)); }
+  g.save(); g.translate(cx,cy); const k=size/24; g.scale(k,k); if(ic.rot) g.rotate(ic.rot*Math.PI/180); if(ic.s) g.scale(ic.s,ic.s); g.translate(-12,-12);
+  g.strokeStyle=color; g.lineWidth=1.45/(ic.s||1); g.lineCap="round"; g.lineJoin="round";
+  if(glow){ g.shadowColor="rgba(224,164,88,.75)"; g.shadowBlur=glow/k; }
+  for(const p of ps) g.stroke(p);
+  g.restore();
+}
+/* short names: the file's own abbreviation, or one made from the name */
+const ABBR=[[/^violin(o)?\s*(i|1)$|^violin(o)?s?\s*1/i,"Vln. 1"],[/^violin(o)?\s*(ii|2)$|^violin(o)?s?\s*2/i,"Vln. 2"],[/^violin|^violino/i,"Vln."],[/^viola/i,"Vla."],[/cello|violoncel/i,"Vc."],[/contrab|double bass/i,"Cb."],[/piccolo|flautim/i,"Picc."],[/flut|flaut/i,"Fl."],[/oboe|obo[eé]/i,"Ob."],[/english horn|corne ingl/i,"C. ingl."],[/bass clar|clarone|clarinete baixo/i,"Cl. b."],[/clar/i,"Cl."],[/contrabassoon|contrafag/i,"Cfg."],[/bassoon|fagot/i,"Fg."],[/horn|trompa|corno/i,"Tpa."],[/trumpet|trompete/i,"Tpt."],[/bass trombone|trombone baixo/i,"Tbn. b."],[/trombon/i,"Tbn."],[/tuba/i,"Tba."],[/timp|t[ií]mpan/i,"Timp."],[/harp|harpa/i,"Hp."],[/celest/i,"Cel."],[/piano/i,"Pno."],[/choir|coro|coral/i,"Coro"]];
+function abbrOf(i, name){
+  try{ const sp=xmlDoc&&xmlDoc.getElementsByTagName("score-part")[i]; const a=sp&&sp.getElementsByTagName("part-abbreviation")[0]; const t=a&&a.textContent.replace(/\s+/g," ").trim(); if(t) return t; }catch(e){}
+  for(const [re,ab] of ABBR) if(re.test(name||"")) return ab;
+  return (name||"").length>10 ? (name||"").slice(0,8)+"." : (name||"");
+}
+
+/* captions (legendas): text over a range of bars, kept per score */
+const capKey=()=>"pr.caps:"+(scoreName||"");
+function loadCaps(){ CINE.caps=[]; try{ const v=JSON.parse(localStorage.getItem(capKey())||"[]"); if(Array.isArray(v)) CINE.caps=v.filter(c=>c&&typeof c.text==="string"); }catch(e){} renderCaps(); }
+function saveCaps(){ try{ if(CINE.caps.length) localStorage.setItem(capKey(), JSON.stringify(CINE.caps)); else localStorage.removeItem(capKey()); }catch(e){} }
+function perfIdxOfNum(num, near){ let best=-1, bd=Infinity; measures.forEach((m,i)=>{ if(String(m.num)===String(num)){ const d=Math.abs(i-(near||0)); if(d<bd){ bd=d; best=i; } } }); return best; }
+function renderCaps(){
+  const box=$("capList"); if(!box) return; box.textContent="";
+  if(!CINE.caps.length){ const p=document.createElement("p"); p.className="hint"; p.textContent="Nenhuma legenda. Pare a música no compasso onde o texto deve aparecer e clique em Adicionar legenda."; box.append(p); return; }
+  CINE.caps.forEach((c,i)=>{
+    const r=document.createElement("div"); r.className="cap";
+    const ta=document.createElement("textarea"); ta.rows=2; ta.value=c.text; ta.placeholder="Texto da legenda (use *asteriscos* para destacar em âmbar)"; ta.addEventListener("input",()=>{ c.text=ta.value; saveCaps(); }); ta.addEventListener("keydown",e=>e.stopPropagation());
+    const row=document.createElement("div"); row.className="caprow";
+    const mk=(lab,key)=>{ const l=document.createElement("label"); l.textContent=lab+" "; const inp=document.createElement("input"); inp.type="number"; inp.className="num"; inp.min=1; inp.value=measures[c[key]]?measures[c[key]].num:1; inp.addEventListener("keydown",e=>e.stopPropagation());
+      inp.addEventListener("change",()=>{ const j=perfIdxOfNum(inp.value, c[key]); if(j<0){ inp.value=measures[c[key]]?measures[c[key]].num:1; toast("Esse compasso não existe na partitura."); return; } c[key]=j; if(c.b<c.a){ if(key==="a") c.b=c.a; else c.a=c.b; } saveCaps(); renderCaps(); }); l.append(inp); return l; };
+    const go=document.createElement("button"); go.className="mini"; go.textContent="ir"; go.title="Ir para o início da legenda"; go.onclick=()=>{ if(measures[c.a]) seekTo(measures[c.a].t0); };
+    const del=document.createElement("button"); del.className="mini"; del.textContent="✕"; del.title="Apagar legenda"; del.onclick=()=>{ CINE.caps.splice(i,1); saveCaps(); renderCaps(); };
+    row.append(mk("do c.","a"), mk("até c.","b"), go, del);
+    r.append(ta,row); box.append(r);
+  });
+}
+function addCap(){
+  if(!measures.length) return; const mi=measureAt(Math.max(0,clockNow()));
+  CINE.caps.push({text:"", a:mi, b:Math.min(measures.length-1, mi+1)}); CINE.caps.sort((x,y)=>x.a-y.a); saveCaps(); renderCaps();
+  const tas=$("capList").querySelectorAll("textarea"); const k=CINE.caps.findIndex(c=>c.a===mi&&!c.text); if(tas[k]) tas[k].focus();
+}
+
+/* geometry of the engraving: one band per instrument */
+async function cinePrepare(){
+  const ver=++CINE.ver; CINE.ready=false; CINE.R=null; CINE.tiles=new Map(); CINE.queue=[];
+  if(!S.cine || !loaded || pdfMode || editMode) return;
+  const gs=osmd.GraphicSheet, sh=osmd.Sheet, svg=host.querySelector("svg"); if(!gs||!svg) return;
+  const so=svgOffset(), vb=svg.viewBox&&svg.viewBox.baseVal, sr=svg.getBoundingClientRect(), sc=(vb&&vb.width)?sr.width/vb.width:unitPx()/10;
+  const by=new Map();
+  for(const m of gs.MeasureList[0]||[]){ if(!m||!m.ParentStaff) continue; const ins=m.ParentStaff.ParentInstrument; if(!ins||ins.Visible===false) continue; let st=null; try{ st=m.getVFStave(); }catch(e){} if(!st) continue;
+    const ii=sh.Instruments.indexOf(ins); if(ii<0) continue; const top=so.y+st.getYForLine(0)*sc, bot=so.y+st.getYForLine(4)*sc;
+    const r=by.get(ii)||{ii, top:1e9, bot:-1e9, staves:[]}; r.top=Math.min(r.top,top); r.bot=Math.max(r.bot,bot); r.staves.push([top,bot]); by.set(ii,r); }
+  const rows=[...by.values()].sort((a,b)=>a.top-b.top); if(!rows.length) return;
+  const sp=unitPx(), gaps=[]; for(let i=1;i<rows.length;i++) gaps.push(rows[i].top-rows[i-1].bot); gaps.sort((a,b)=>a-b);
+  const gTyp=gaps.length?gaps[gaps.length>>1]:8*sp, svgTop=so.y, svgBot=so.y+sr.height;
+  rows.forEach((r,i)=>{
+    r.bTop = i ? (rows[i-1].bot+r.top)/2 : Math.max(svgTop, r.top-Math.max(gTyp/2, 6*sp));
+    r.bBot = i<rows.length-1 ? (r.bot+rows[i+1].top)/2 : Math.min(svgBot, r.bot+Math.max(gTyp/2, 6*sp));
+    const ins=sh.Instruments[r.ii]; r.name=ins.Name||("Instrumento "+(r.ii+1)); r.abbr=abbrOf(r.ii, r.name); r.icon=iconFor(r.name+" "+r.abbr);
+  });
+  CINE.rows=rows; CINE.rowOf=new Map(rows.map(r=>[r.ii,r]));
+  // a staff comes in one bar before its entrance and leaves one bar after its last note; rests shorter than two bars keep it
+  const base=sh.Instruments.map((ins,ii)=>CINE.rowOf.has(ii)), P=measures.length, key=a=>a.map(b=>b?1:0).join("");
+  let sets;
+  if(S.cHide!==false && rows.length>1 && P){
+    const play=playingByMeasure();
+    const show=base.map((b,ii)=>{ const r=measures.map(m=>b && play[ii].has(m.src)); const v=r.map((x,i)=>x||!!r[i+1]||(i>0&&r[i-1]));
+      let i=0; while(i<P){ if(v[i]){ i++; continue; } let j=i; while(j<P&&!v[j]) j++; if(i>0 && j<P && j-i<2) for(let q=i;q<j;q++) v[q]=true; i=j; } return v; });
+    sets=measures.map((m,i)=>base.map((b,ii)=>!!show[ii][i]));
+    for(let i=0;i<P;i++) if(!sets[i].some(Boolean)) sets[i]= i? sets[i-1].slice() : base.slice();
+  } else sets=measures.map(()=>base.slice());
+  CINE.secs=[]; CINE.secOf=[];
+  sets.forEach((s,i)=>{ const k=key(s), last=CINE.secs[CINE.secs.length-1]; if(!last||last.key!==k) CINE.secs.push({key:k, mi0:i, t0:measures[i].t0}); CINE.secOf[i]=CINE.secs.length-1; });
+  if(!CINE.secs.length) CINE.secs=[{key:key(base),mi0:0,t0:0}];
+  // staves that come in finish appearing on the downbeat; staves that leave go after it; both at once: across it
+  CINE.secs.forEach((sc,i)=>{ sc.off=0; if(!i) return; const A=CINE.secs[i-1].key, B=sc.key; let add=false, rem=false; for(let j=0;j<B.length;j++){ if(B[j]==="1"&&A[j]!=="1") add=true; if(A[j]==="1"&&B[j]!=="1") rem=true; } sc.off = add&&!rem ? -CINE_D : add&&rem ? -CINE_D/2 : 0; });
+  // when each instrument is sounding (icons light up)
+  CINE.act=sh.Instruments.map(()=>[]); let maxDur=1;
+  for(const n of notes){ if(n.midi===null||n.pi===undefined||!CINE.act[n.pi]) continue; const e=Math.max(n.t1, n.soundEnd||n.t1); CINE.act[n.pi].push([n.t0,e]); maxDur=Math.max(maxDur, e-n.t0); }
+  CINE.act=CINE.act.map(l=>{ l.sort((a,b)=>a[0]-b[0]); const out=[]; for(const iv of l){ const o=out[out.length-1]; if(o && iv[0]<=o[1]+0.5) o[1]=Math.max(o[1],iv[1]); else out.push(iv.slice()); } return out; });
+  CINE.maxDur=maxDur;
+  // where every note is drawn, and its note heads (for glows and the lines of long notes)
+  const hr=host.getBoundingClientRect(), boxes=new Map();
+  const bbOf=el=>{ let b=boxes.get(el); if(b) return b; const r=el.getBoundingClientRect(); b={x:r.left-hr.left, y:r.top-hr.top, w:r.width, h:r.height, heads:[]};
+    for(const hd of el.querySelectorAll(".vf-notehead")){ const q=hd.getBoundingClientRect(); if(q.width>0) b.heads.push({x:q.left-hr.left, y:q.top-hr.top, w:q.width, h:q.height}); }
+    if(!b.heads.length) b.heads.push({x:b.x, y:b.y+b.h/2-3, w:Math.min(b.w,12), h:6}); boxes.set(el,b); return b; };
+  for(const list of [srcNotes,notes]) for(const n of list){ if(n.els){ try{ n.cb=bbOf(n.els); }catch(e){ n.cb=null; } } }
+  CINE.noteIdx=notes.map((n,i)=>i);
+  // the engraving as an image source, cut into tiles on demand
+  const ink=CI.ink, ink2=CI.ink2;
+  clearHl();
+  const cl=svg.cloneNode(true);
+  cl.setAttribute("xmlns","http://www.w3.org/2000/svg");
+  cl.querySelectorAll(".sel-box").forEach(n=>n.remove());
+  { const st=document.createElementNS("http://www.w3.org/2000/svg","style"); st.textContent=fontFaceCss(); cl.insertBefore(st,cl.firstChild); }
+  cl.querySelectorAll("*").forEach(el=>{
+    const tag=el.tagName.toLowerCase();
+    if(tag==="text"||tag==="tspan"){ el.setAttribute("fill",ink2); el.style.fill=ink2; return; }
+    const f=el.getAttribute("fill"), s=el.getAttribute("stroke");
+    if(f!=="none" && (f!==null || ["path","rect","ellipse","polygon","circle"].includes(tag))) { el.setAttribute("fill",ink); el.style.fill=ink; }
+    if(s && s!=="none"){ el.setAttribute("stroke",ink); el.style.stroke=ink; }
+    if(tag==="line"){ el.setAttribute("stroke",ink); el.style.stroke=ink; }
+  });
+  const w=parseFloat(svg.getAttribute("width"))||sr.width, h=parseFloat(svg.getAttribute("height"))||sr.height;
+  const vb0=(vb&&vb.width)?{x:vb.x,y:vb.y,width:vb.width,height:vb.height}:{x:0,y:0,width:w,height:h};
+  CINE.src={ str:new XMLSerializer().serializeToString(cl), w, h, vb0, ux:vb0.width/w, ox:so.x, oy:so.y, sp };
+  CINE.ready=true; CINE.wantScale=0;
+  loadCaps();
+  try{ await Promise.all(["500 20px 'IBM Plex Sans'","600 20px 'IBM Plex Sans'","500 20px 'IBM Plex Mono'","900 40px 'Big Shoulders Display'"].map(f=>document.fonts.load(f))); }catch(e){}
+  if(ver!==CINE.ver) return;
+}
+/* raster at the sharpest scale any frame needs; tiles are built when they come near the reading line */
+const TILE_W=900, CINE_D=1.1;
+function cineEnsure(scale){
+  if(!CINE.ready) return null;
+  scale=Math.min(3, Math.max(0.5, scale));
+  if(CINE.R && CINE.R.scale>=scale*0.87) return CINE.R;
+  const src=CINE.src;
+  CINE.R={ scale:Math.round(scale*100)/100, TW:TILE_W, w:src.w, h:src.h, ox:src.ox, oy:src.oy, n:Math.ceil(src.w/TILE_W), hdr:false };
+  CINE.tiles=new Map(); CINE.queue=[];
+  const R=CINE.R;
+  prepareHeaderImages(R.scale).then(()=>{ if(CINE.R===R){ R.hdr=true; R.hdrImgs=hdrImgs; } }).catch(()=>{});
+  return R;
+}
+function cineSlice(i){
+  const R=CINE.R, src=CINE.src, cx=i*R.TW, cw=Math.min(R.TW, src.w-cx), W=Math.ceil(cw*R.scale), H=Math.ceil(src.h*R.scale);
+  return src.str.replace(/^<svg\b[^>]*>/, tag=>{ const t=tag.replace(/\s(width|height|viewBox|style)="[^"]*"/g,""); return t.replace(/^<svg/, `<svg width="${W}" height="${H}" viewBox="${src.vb0.x+cx*src.ux} ${src.vb0.y} ${cw*src.ux} ${src.vb0.height}" preserveAspectRatio="none"`); });
+}
+function cineTile(i){
+  const R=CINE.R; if(!R||i<0||i>=R.n) return null;
+  let t=CINE.tiles.get(i); if(t){ t.used=CINE.clock; return t.c; }
+  t={i, c:null, used:CINE.clock, R}; CINE.tiles.set(i,t); CINE.queue.push(t); cinePump(); return null;
+}
+function cinePump(){
+  while(CINE.busy<2 && CINE.queue.length){
+    CINE.queue.sort((a,b)=>Math.abs(a.i-CINE.focus)-Math.abs(b.i-CINE.focus));
+    const t=CINE.queue.shift(); if(t.R!==CINE.R) continue;
+    CINE.busy++;
+    (async()=>{ try{
+        const str=cineSlice(t.i);
+        const im=await new Promise((res,rej)=>{ const im=new Image(); const u=URL.createObjectURL(new Blob([str],{type:"image/svg+xml"})); im.onload=()=>{ res(im); URL.revokeObjectURL(u); }; im.onerror=e=>{ URL.revokeObjectURL(u); rej(e); }; im.src=u; });
+        if(t.R!==CINE.R) return;
+        const c=document.createElement("canvas"); c.width=im.width; c.height=im.height; c.getContext("2d").drawImage(im,0,0); t.c=c;
+        // keep memory in check: drop the tiles furthest from the reading line
+        const live=[...CINE.tiles.values()].filter(x=>x.c); if(live.length>26){ live.sort((a,b)=>Math.abs(b.i-CINE.focus)-Math.abs(a.i-CINE.focus)); for(const x of live.slice(0,live.length-26)){ x.c.width=0; CINE.tiles.delete(x.i); } }
+      }catch(e){ CINE.tiles.delete(t.i); console.warn("tile",t.i,e); }
+      finally{ CINE.busy--; cinePump(); } })();
+  }
+}
+async function cineWarm(t, W, H){ // before recording: build the first screens
+  const u=Math.min(W,H)/1080, R=cineEnsure(cineKMax(u)); if(!R) return;
+  const p=posAt(Math.max(0,t)), span=W/Math.max(0.05,cineKMax(u));
+  const i0=Math.max(0,Math.floor((p.x-span-R.ox)/R.TW)), i1=Math.min(R.n-1,Math.floor((p.x+span*1.5-R.ox)/R.TW));
+  for(let i=i0;i<=i1;i++) cineTile(i);
+  const t0=performance.now();
+  while(performance.now()-t0<8000){ let ok=R.hdr||!HDR; for(let i=i0;i<=i1;i++){ const x=CINE.tiles.get(i); if(!x||!x.c) ok=false; } if(ok) return; await new Promise(r=>setTimeout(r,60)); }
+}
+const cineKMax=u=>14*u*(S.cSize||100)/100/(CINE.src?CINE.src.sp:unitPx());
+
+/* layout of one set of instruments in a frame */
+function cineLayout(key, M, cache){
+  const ck=key+"|"+M.sig; if(cache[ck]) return cache[ck];
+  const vis=CINE.rows.filter(r=>key[r.ii]==="1"); const nat=vis.reduce((s,r)=>s+(r.bBot-r.bTop),0)||1, avail=M.bot-M.top;
+  const k=Math.min(M.kMax, avail/nat); let extra=0;
+  if(vis.length>1){ const free=avail-nat*k; if(free>0) extra=Math.min(free/(vis.length-1), 0.5*nat*k/vis.length); }
+  const total=nat*k+extra*(vis.length-1); let y=M.top+(avail-total)*0.46; const Y={};
+  for(const r of vis){ Y[r.ii]=y; y+=(r.bBot-r.bTop)*k+extra; }
+  // staves that are not in this set sit, folded, where they would go: they slide out of / into that gap
+  const all=CINE.rows; all.forEach((r,i)=>{ if(Y[r.ii]!==undefined) return; let below=null; for(let j=i+1;j<all.length;j++) if(key[all[j].ii]==="1"){ below=all[j]; break; }
+    if(below) Y[r.ii]=Y[below.ii]-(r.bBot-r.bTop)*k*0.5; else { let above=null; for(let j=i-1;j>=0;j--) if(key[all[j].ii]==="1"){ above=all[j]; break; } Y[r.ii]=above?Y[above.ii]+(above.bBot-above.bTop)*k-(r.bBot-r.bTop)*k*0.5:M.top; } });
+  return cache[ck]={k,Y};
+}
+function cineSection(t){
+  if(!CINE.secs.length) return {A:0,B:0,e:1};
+  const mi=measureAt(Math.max(0,t)), s=Math.max(0,Math.min(CINE.secs.length-1, CINE.secOf[mi]||0)), D=CINE_D;
+  const cur=CINE.secs[s], nx=CINE.secs[s+1];
+  if(nx && t>=nx.t0+nx.off) return {A:s,B:s+1,e:ease((t-(nx.t0+nx.off))/D)};
+  if(s>0 && t<cur.t0+cur.off+D) return {A:s-1,B:s,e:ease((t-(cur.t0+cur.off))/D)};
+  return {A:s,B:s,e:1};
+}
+function actLevel(ii,t){ const l=CINE.act[ii]; if(!l||!l.length) return 0; let lo=0, hi=l.length-1; if(t<l[0][0]) return 0; while(lo<hi){ const m=(lo+hi+1)>>1; if(l[m][0]<=t) lo=m; else hi=m-1; } const iv=l[lo]; if(t<=iv[1]) return 1; return Math.max(0,1-(t-iv[1])/0.35); }
+
+/* background: drifting smoke in the identity's dark blues, drawn once and moved */
+function cineFog(W,H){
+  const key=W+"x"+H+"|"+S.cBg; if(CINE.fog&&CINE.fog.key===key) return CINE.fog;
+  const fw=Math.ceil(W*1.5), fh=Math.ceil(H*1.3), c=document.createElement("canvas"); c.width=fw; c.height=fh; const g=c.getContext("2d");
+  g.fillStyle=CI.bg; g.fillRect(0,0,fw,fh);
+  if(S.cBg!=="plain"){
+    let seed=7; const rnd=()=>{ seed=(seed*16807)%2147483647; return seed/2147483647; };
+    const blobs=[["22,29,40",.55,70],["28,36,50",.35,46],["35,44,60",.18,26]];
+    for(const [rgb,a,n] of blobs) for(let i=0;i<n;i++){ const x=rnd()*fw, y=rnd()*fh, r=(0.08+rnd()*0.22)*Math.max(fw,fh), gr=g.createRadialGradient(x,y,0,x,y,r); gr.addColorStop(0,`rgba(${rgb},${a*(0.4+rnd()*0.6)})`); gr.addColorStop(1,`rgba(${rgb},0)`); g.fillStyle=gr; g.beginPath(); g.ellipse(x,y,r,r*(0.45+rnd()*0.4),rnd()*Math.PI,0,Math.PI*2); g.fill(); }
+  }
+  return CINE.fog={key,c,fw,fh};
+}
+function cineBg(g,W,H,u,clock,chroma){
+  if(chroma){ g.fillStyle=chroma; g.fillRect(0,0,W,H); return; }
+  const F=cineFog(W,H);
+  const dx=(F.fw-W)*(0.5+0.5*Math.sin(clock*0.021)), dy=(F.fh-H)*(0.5+0.5*Math.cos(clock*0.017));
+  g.drawImage(F.c,-dx,-dy);
+  if(S.cBg!=="plain"){ g.globalAlpha=0.5; g.drawImage(F.c, -(F.fw-W)*(0.5+0.5*Math.cos(clock*0.013+1)), -(F.fh-H)*(0.5+0.5*Math.sin(clock*0.011+2)), F.fw, F.fh); g.globalAlpha=1; }
+  const vg=g.createRadialGradient(W/2,H*0.48,Math.min(W,H)*0.25,W/2,H/2,Math.max(W,H)*0.75); vg.addColorStop(0,"rgba(13,16,21,0)"); vg.addColorStop(1,"rgba(7,9,12,.78)"); g.fillStyle=vg; g.fillRect(0,0,W,H);
+}
+function cineSpaced(g,txt,x,y,sp,align){ let w=0; for(const ch of txt) w+=g.measureText(ch).width+sp; w-=sp; if(align==="right") x-=w; else if(align==="center") x-=w/2; g.textAlign="left"; for(const ch of txt){ g.fillText(ch,x,y); x+=g.measureText(ch).width+sp; } return w; }
+function cineCaption(g, text, cx, y, maxW, u, alpha){
+  // *word* in amber; wrapped, centred
+  const size=40*u; g.font=`600 ${size}px 'IBM Plex Sans', Arial, sans-serif`;
+  const toks=[]; let amber=false; for(const part of String(text).split("*")){ for(const w of part.split(/(\s+)/)) if(w) toks.push({w,amber}); amber=!amber; }
+  const lines=[]; let cur=[], cw=0;
+  for(const t of toks){ if(/^\s+$/.test(t.w)){ if(cur.length){ cur.push(t); cw+=g.measureText(t.w).width; } continue; } const tw=g.measureText(t.w).width; if(cw+tw>maxW && cur.length){ while(cur.length&&/^\s+$/.test(cur[cur.length-1].w)) cur.pop(); lines.push(cur); cur=[]; cw=0; } cur.push(t); cw+=tw; }
+  if(cur.length) lines.push(cur);
+  g.save(); g.globalAlpha=alpha; g.textBaseline="alphabetic"; g.shadowColor="rgba(7,9,12,.9)"; g.shadowBlur=18*u;
+  lines.forEach((ln,i)=>{ const w=ln.reduce((s,t)=>s+g.measureText(t.w).width,0); let x=cx-w/2; for(const t of ln){ g.fillStyle=t.amber?CI.amber:CI.ink; g.textAlign="left"; g.fillText(t.w,x,y+i*size*1.25); x+=g.measureText(t.w).width; } });
+  g.restore();
+  return lines.length*size*1.25;
+}
+
+/* one frame of the cinema view */
+function cineDraw(g, W, H, t, o){
+  o=o||{}; CINE.clock++;
+  const u=Math.min(W,H)/1080, vert=H>W*1.05, reels=!!o.reels, clock=o.clock!==undefined?o.clock:performance.now()/1000;
+  cineBg(g,W,H,u,clock,o.chroma);
+  if(!CINE.ready){ g.fillStyle=CI.ink3; g.font=`500 ${22*u}px 'IBM Plex Mono', monospace`; cineSpaced(g,"PREPARANDO O MODO CINEMA…",W/2,H/2,4*u,"center"); return; }
+  const kMax=cineKMax(u), R=cineEnsure(kMax); if(!R) return;
+  const padX=(vert?44:64)*u, rightSafe=reels?140*u:0;
+  const M={ top:(reels?300:vert?220:150)*u, bot:H-(reels?720:vert?400:200)*u, kMax };
+  M.sig=Math.round(W)+"x"+Math.round(H)+"|"+(reels?1:0)+"|"+Math.round(kMax*1000);
+  const cache=CINE.lay&&CINE.lay.sig===M.sig&&CINE.lay.ver===CINE.ver ? CINE.lay.c : (CINE.lay={sig:M.sig,ver:CINE.ver,c:{}}).c;
+  const iconSz=(vert?62:56)*u, labelR=padX+(vert?196:220)*u, scoreL=labelR+(vert?40:44)*u, ph=Math.max(scoreL+140*u, (W-rightSafe)*S.cPh/100);
+  const sec=cineSection(t), kA=CINE.secs[sec.A].key, kB=CINE.secs[sec.B].key, LA=cineLayout(kA,M,cache), LB=cineLayout(kB,M,cache), e=sec.e;
+  const k=lerp(LA.k,LB.k,e); CINE.lastK=k;
+  const p=posAt(t), X=xh=>ph+(xh-p.x)*k;
+  // rows on screen now, with their place and opacity
+  const draw=[];
+  for(const r of CINE.rows){ const inA=kA[r.ii]==="1", inB=kB[r.ii]==="1"; if(!inA&&!inB) continue;
+    const y=lerp(LA.Y[r.ii],LB.Y[r.ii],e), a= inA&&inB ? 1 : inA ? 1-ease(e/0.55) : ease((e-0.45)/0.55);
+    if(a<=0.004) continue; draw.push({r,y,a}); }
+  const rowY=(d,yh)=>d.y+(yh-d.r.bTop)*k;
+  const byIns=new Map(draw.map(d=>[d.r.ii,d]));
+  // sticky clef, key and time once the opening has scrolled under the labels
+  const hi=(R.hdr&&HDR&&stickyX&&stickyX.xs!==undefined)?hdrImgs.get(hdrKeyAt(t)):null;
+  const stickyOn=!!hi && X(R.ox+stickyX.xs)<scoreL;
+  const clipL=stickyOn? scoreL+hi.w*k+4*u : scoreL;
+  // score layer (offscreen): staves, lit notes, then the fade that dims what is still to come
+  if(!CINE.L||CINE.L.width!==W||CINE.L.height!==H){ CINE.L=document.createElement("canvas"); CINE.L.width=W; CINE.L.height=H; }
+  const L=CINE.L, lg=L.getContext("2d"); lg.setTransform(1,0,0,1,0,0); lg.globalCompositeOperation="source-over"; lg.globalAlpha=1; lg.clearRect(0,0,W,H);
+  const hx0=p.x+(clipL-ph)/k, hx1=p.x+(W-ph)/k;
+  CINE.focus=Math.floor((p.x-R.ox)/R.TW);
+  const blit=(cg, ax, bx, yTop, yBot, dx, dy)=>{ // host rect -> canvas, through the tiles
+    const i0=Math.max(0,Math.floor((ax-R.ox)/R.TW)), i1=Math.min(R.n-1,Math.floor((bx-R.ox)/R.TW));
+    for(let i=i0;i<=i1;i++){ const c=cineTile(i); if(!c) continue; const tx0=R.ox+i*R.TW, a=Math.max(ax,tx0), b=Math.min(bx,tx0+c.width/R.scale); if(b<=a) continue;
+      const sy=Math.max(0,(yTop-R.oy)*R.scale), sy1=Math.min(c.height,(yBot-R.oy)*R.scale); if(sy1<=sy) continue;
+      cg.drawImage(c,(a-tx0)*R.scale,sy,(b-a)*R.scale,sy1-sy, dx+(a-ax)*k, dy+((sy/R.scale+R.oy)-yTop)*k, (b-a)*k, (sy1-sy)/R.scale*k); }
+  };
+  for(const d of draw){ lg.globalAlpha=d.a; blit(lg, hx0, hx1, d.r.bTop, d.r.bBot, X(hx0), d.y); }
+  // keep the next screen ready
+  { const ahead=(W/k)*1.2; const i1=Math.min(R.n-1,Math.floor((hx1+ahead-R.ox)/R.TW)); for(let i=Math.max(0,Math.floor((hx0-R.ox)/R.TW));i<=i1;i++) cineTile(i); }
+  // notes that are sounding: amber, with a soft glow
+  const lit=[]; if(S.hl!==false){
+    const tw=CINE.maxDur+0.6; let lo=0, hi2=notes.length; while(lo<hi2){ const m=(lo+hi2)>>1; if(notes[m].t0<=t) lo=m+1; else hi2=m; }
+    const seen=new Set(), seenT=new Set(), trails=[];
+    for(let j=lo-1;j>=0 && notes[j].t0>=t-tw;j--){ const n=notes[j]; if(n.midi===null||!n.cb) continue; const d=byIns.get(n.pi); if(!d) continue;
+      const end=Math.max(n.t1, n.soundEnd||n.t1);
+      if(t>=n.t0-0.001 && t<n.t1-0.005 && !seen.has(n.els)){ seen.add(n.els); lit.push({n,d}); }
+      if(t<end+0.35 && !seenT.has(n.els)){ seenT.add(n.els); trails.push({n,d,end}); } }
+    if(!CINE.T) CINE.T=document.createElement("canvas");
+    const T=CINE.T, tg=T.getContext("2d");
+    for(const {n,d} of lit){ const b=n.cb, pad=3, ax=b.x-pad, bx=b.x+b.w+pad; if(X(bx)<clipL) continue;
+      const tw2=Math.ceil((bx-ax)*k)+2, th=Math.ceil((b.h+pad*2)*k)+2; if(tw2<2||th<2||tw2>2000||th>2000) continue;
+      if(T.width<tw2) T.width=tw2; if(T.height<th) T.height=th; tg.globalCompositeOperation="source-over"; tg.clearRect(0,0,T.width,T.height);
+      blit(tg, ax, bx, b.y-pad, b.y+b.h+pad, 0, 0);
+      tg.globalCompositeOperation="source-in"; tg.fillStyle=CI.amber; tg.fillRect(0,0,tw2,th); tg.globalCompositeOperation="source-over";
+      lg.save(); lg.globalAlpha=d.a; if(S.cGlow!==false){ lg.shadowColor="rgba(224,164,88,.9)"; lg.shadowBlur=14*u; }
+      lg.drawImage(T,0,0,tw2,th, X(ax), rowY(d,b.y-pad), tw2, th); lg.restore(); }
+    CINE.trails=trails;
+  } else CINE.trails=[];
+  // dim what is still to come, fade at both edges
+  { lg.globalAlpha=1; lg.globalCompositeOperation="destination-out";
+    const dim=clamp01((S.cDim===undefined?45:S.cDim)/100), gr=lg.createLinearGradient(0,0,W,0), at=x=>clamp01(x/W);
+    gr.addColorStop(0,"rgba(0,0,0,1)"); gr.addColorStop(at(clipL),"rgba(0,0,0,1)"); gr.addColorStop(at(clipL+46*u),"rgba(0,0,0,0)");
+    gr.addColorStop(at(ph+4*u),"rgba(0,0,0,0)"); gr.addColorStop(at(ph+90*u),`rgba(0,0,0,${dim})`);
+    gr.addColorStop(at(Math.max(ph+100*u,W-rightSafe-190*u)),`rgba(0,0,0,${dim})`); gr.addColorStop(at(W-rightSafe-6*u),"rgba(0,0,0,1)"); gr.addColorStop(1,"rgba(0,0,0,1)");
+    lg.fillStyle=gr; lg.fillRect(0,0,W,H); lg.globalCompositeOperation="source-over"; }
+  if(stickyOn){ const im=hi.img, s=im.height/((HDR.y1-HDR.y0)||1);
+    for(const d of draw){ const top=R.oy+HDR.y0; const a=Math.max(d.r.bTop,top), b=Math.min(d.r.bBot, top+im.height/s); if(b<=a) continue;
+      lg.globalAlpha=d.a; lg.drawImage(im,0,(a-top)*s,im.width,(b-a)*s, scoreL, rowY(d,a), hi.w*k, (b-a)*k); }
+    lg.globalAlpha=1; }
+  g.drawImage(L,0,0);
+  // system bracket, braces for instruments on two staves
+  if(draw.length){
+    const vis=draw.filter(d=>d.a>0.05); const yt=Math.min(...vis.map(d=>rowY(d,d.r.top))), yb=Math.max(...vis.map(d=>rowY(d,d.r.bot)));
+    const bx=scoreL-12*u; g.save(); g.fillStyle=CI.ink; g.strokeStyle=CI.ink; g.globalAlpha=0.9;
+    if(isFinite(yt)&&isFinite(yb)&&yb>yt){ g.fillRect(bx,yt-3*u,4.5*u,yb-yt+6*u); g.lineWidth=2.2*u; g.lineCap="round";
+      g.beginPath(); g.moveTo(bx+1*u,yt-3*u); g.quadraticCurveTo(bx+10*u,yt-4*u,bx+16*u,yt-11*u); g.stroke();
+      g.beginPath(); g.moveTo(bx+1*u,yb+3*u); g.quadraticCurveTo(bx+10*u,yb+4*u,bx+16*u,yb+11*u); g.stroke(); }
+    for(const d of draw){ if(d.r.staves.length<2) continue; const y0=rowY(d,d.r.top), y1=rowY(d,d.r.bot), m=(y0+y1)/2, x=bx-14*u, w=9*u; g.globalAlpha=0.9*d.a; g.lineWidth=2.4*u;
+      g.beginPath(); g.moveTo(x+w,y0); g.bezierCurveTo(x+w*0.1,y0+2*u, x+w*0.9,m-6*u, x,m); g.bezierCurveTo(x+w*0.9,m+6*u, x+w*0.1,y1-2*u, x+w,y1); g.stroke(); }
+    g.restore();
+  }
+  // lines that follow long notes, and the flash when a note starts
+  g.save(); g.globalCompositeOperation="lighter";
+  if(S.cTrail!==false) for(const {n,d,end} of CINE.trails){ if(end-n.t0<0.55) continue; const fade=t>end?1-(t-end)/0.35:1; if(fade<=0) continue;
+    for(const h of n.cb.heads){ const x1=X(h.x+h.w)+3*u, x2=ph, y=rowY(d,h.y+h.h/2); if(x2-x1<6*u||x1<clipL) continue;
+      const gr=g.createLinearGradient(x1,0,x2,0); gr.addColorStop(0,"rgba(224,164,88,0)"); gr.addColorStop(0.7,`rgba(224,164,88,${0.35*fade*d.a})`); gr.addColorStop(1,`rgba(240,196,130,${0.8*fade*d.a})`);
+      g.fillStyle=gr; g.fillRect(x1,y-1.3*u,x2-x1,2.6*u); } }
+  if(S.cGlow!==false){ let cnt=0; let lo=0, hi2=notes.length; while(lo<hi2){ const m=(lo+hi2)>>1; if(notes[m].t0<=t) lo=m+1; else hi2=m; }
+    const seenH=new Set();
+    for(let j=lo-1;j>=0 && notes[j].t0>=t-0.5 && cnt<48;j--){ const n=notes[j]; if(!n.sound||n.midi===null||!n.cb) continue; const d=byIns.get(n.pi); if(!d) continue; const f=1-(t-n.t0)/0.5; if(f<=0) continue;
+      for(const h of n.cb.heads){ if(seenH.has(h)) continue; seenH.add(h); cnt++;
+        const cx=X(h.x+h.w/2), cy=rowY(d,h.y+h.h/2), ff=f*f*d.a, rr=(16+26*f)*u;
+        const gr=g.createRadialGradient(cx,cy,0,cx,cy,rr); gr.addColorStop(0,`rgba(255,244,224,${0.85*ff})`); gr.addColorStop(0.3,`rgba(224,164,88,${0.45*ff})`); gr.addColorStop(1,"rgba(224,164,88,0)");
+        g.fillStyle=gr; g.beginPath(); g.arc(cx,cy,rr,0,Math.PI*2); g.fill();
+        const sl=(14+34*f)*u; const sg=g.createLinearGradient(cx-sl,0,cx+sl,0); sg.addColorStop(0,"rgba(255,236,205,0)"); sg.addColorStop(0.5,`rgba(255,236,205,${0.8*ff})`); sg.addColorStop(1,"rgba(255,236,205,0)");
+        g.fillStyle=sg; g.fillRect(cx-sl,cy-0.8*u,sl*2,1.6*u);
+        const vl=sl*0.55, vg=g.createLinearGradient(0,cy-vl,0,cy+vl); vg.addColorStop(0,"rgba(255,236,205,0)"); vg.addColorStop(0.5,`rgba(255,236,205,${0.7*ff})`); vg.addColorStop(1,"rgba(255,236,205,0)");
+        g.fillStyle=vg; g.fillRect(cx-0.7*u,cy-vl,1.4*u,vl*2); } } }
+  g.restore();
+  // the reading line: a soft amber beam, fading at both ends
+  { const yt=M.top-110*u, yb=M.bot+110*u, N=28, sh=(yb-yt)/N;
+    const beam=g.createLinearGradient(ph-24*u,0,ph+24*u,0); beam.addColorStop(0,"rgba(224,164,88,0)"); beam.addColorStop(0.5,"rgba(224,164,88,.13)"); beam.addColorStop(1,"rgba(224,164,88,0)");
+    g.save(); g.globalCompositeOperation="lighter";
+    for(let i=0;i<N;i++){ const f=(i+0.5)/N, a=Math.min(1,Math.min(f,1-f)/0.2); g.globalAlpha=a; g.fillStyle=beam; g.fillRect(ph-24*u,yt+i*sh,48*u,sh+0.5); g.fillStyle="rgba(224,164,88,.6)"; g.fillRect(ph-1.1*u,yt+i*sh,2.2*u,sh+0.5); }
+    g.restore(); }
+  // instrument column: icon (amber while it plays) and short name
+  for(const d of draw){
+    const cy=rowY(d,(d.r.top+d.r.bot)/2), act=actLevel(d.r.ii,t);
+    g.save();
+    if(S.cIcons!==false){ const ix=padX+iconSz/2;
+      if(act<1){ g.globalAlpha=d.a*(1-act)*0.88; drawIcon(g,d.r.icon,ix,cy,iconSz,CI.ink,0); }
+      if(act>0){ g.globalAlpha=d.a*act; drawIcon(g,d.r.icon,ix,cy,iconSz,CI.amber,S.cGlow!==false?10*u:0); } }
+    const maxW=labelR-(S.cIcons!==false?padX+iconSz+12*u:padX);
+    let fs=(vert?25:24)*u; g.font=`500 ${fs}px 'IBM Plex Sans', Arial, sans-serif`; while(g.measureText(d.r.abbr).width>maxW && fs>12*u){ fs-=1*u; g.font=`500 ${fs}px 'IBM Plex Sans', Arial, sans-serif`; }
+    g.globalAlpha=d.a; g.fillStyle=act>0.5?CI.ink:CI.ink2; g.textAlign="right"; g.textBaseline="middle"; g.fillText(d.r.abbr,labelR,cy);
+    g.restore();
+  }
+  g.textBaseline="alphabetic"; g.textAlign="left";
+  // top: handle and bar number (identity: mono, wide spacing)
+  const topY=(reels?250:vert?118:80)*u;
+  if(S.cHandle){ g.fillStyle=CI.ink; g.font=`500 ${24*u}px 'IBM Plex Mono', monospace`; cineSpaced(g,S.cHandle,padX,topY,4.2*u,"left"); }
+  const mi=measureAt(Math.max(0,t)), mm=measures[mi];
+  if(o.meas!==false && S.cMeas!==false && mm){ const xr=W-padX-rightSafe; g.font=`900 ${50*u}px 'Big Shoulders Display', 'Arial Narrow', sans-serif`; g.fillStyle=CI.amber; g.textAlign="right"; const num=String(mm.num); g.fillText(num,xr,topY+8*u); const nw=g.measureText(num).width;
+    g.font=`500 ${18*u}px 'IBM Plex Mono', monospace`; g.fillStyle=CI.ink3; cineSpaced(g,"COMPASSO",xr-nw-14*u,topY,4*u,"right"); g.textAlign="left"; }
+  // captions
+  // vertical: centred under the score; horizontal: to the right of the title block
+  const capL=vert?padX:W*0.36, capR=W-padX-rightSafe, cx=(capL+capR)/2, maxCW=capR-capL-(vert?20*u:0);
+  let capY=M.bot+(reels?60:vert?78:96)*u;
+  for(const c of CINE.caps){ const a=measures[c.a], b=measures[c.b]; if(!a||!b||!c.text) continue; const ta=a.t0, tb=b.t1; if(t<ta-0.4||t>tb+0.4) continue;
+    const al=Math.min(clamp01((t-ta+0.4)/0.5), clamp01((tb+0.4-t)/0.5)); capY+=cineCaption(g,c.text,cx,capY,maxCW,u,al); }
+  // bottom: label, title, credits
+  if(o.text!==false && S.cTitle!==false){
+    const title=(typeof META!=="undefined"&&META.title)||scoreName||"", comp=(typeof META!=="undefined"&&META.composer)||"", kick=(S.ovSub||"").toUpperCase();
+    const by=H-(reels?432:vert?120:70)*u; let y=by;
+    g.textAlign="left";
+    if(comp){ g.font=`400 ${22*u}px 'IBM Plex Sans', Arial, sans-serif`; g.fillStyle=CI.ink3; g.fillText(comp,padX,y); y-=36*u; }
+    if(title){ let fs=(vert?62:56)*u; g.font=`900 ${fs}px 'Big Shoulders Display', 'Arial Narrow', sans-serif`; const T2=title.toUpperCase(); while(g.measureText(T2).width>W-2*padX-rightSafe && fs>24*u){ fs-=2*u; g.font=`900 ${fs}px 'Big Shoulders Display', 'Arial Narrow', sans-serif`; } g.fillStyle=CI.ink; g.fillText(T2,padX,y); y-=fs*0.92; }
+    if(kick){ g.font=`500 ${18*u}px 'IBM Plex Mono', monospace`; g.fillStyle=CI.amber; cineSpaced(g,kick,padX,y,4.4*u,"left"); }
+  }
+}
+
+/* on screen */
+const cineCanvas=$("cineCanvas"), cineG=cineCanvas.getContext("2d");
+function cineFrame(){
+  const on=cineActive();
+  stage.classList.toggle("cine",on);
+  if(!on) return;
+  const sw=stage.clientWidth, shh=stage.clientHeight; let w=sw, h=shh;
+  if(S.cFrame==="v"){ w=Math.min(sw, shh*9/16); h=w*16/9; } else if(S.cFrame==="h"){ h=Math.min(shh, sw*9/16); w=h*16/9; }
+  w=Math.floor(w); h=Math.floor(h);
+  const dpr=Math.min(2.5, window.devicePixelRatio||1), bw=Math.round(w*dpr), bh=Math.round(h*dpr);
+  if(cineCanvas.width!==bw||cineCanvas.height!==bh){ cineCanvas.width=bw; cineCanvas.height=bh; }
+  cineCanvas.style.width=w+"px"; cineCanvas.style.height=h+"px"; cineCanvas.style.left=Math.round((sw-w)/2)+"px"; cineCanvas.style.top=Math.round((shh-h)/2)+"px";
+  cineDraw(cineG, bw, bh, clockNow(), {});
+  CINE.cssK=CINE.lastK/dpr;
+}
+async function setCine(on){
+  if(on && pdfMode){ toast("O Modo Cinema funciona com partituras MusicXML."); on=false; }
+  S.cine=on; save(); syncCineUI();
+  if(on && S.mode!=="horizontal"){ S.mode="horizontal"; $("segMode").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v==="horizontal"))); }
+  await render();
+  if(on) toast("Modo Cinema ligado. Ajustes › Modo Cinema tem formato, efeitos e legendas.");
+}
+function syncCineUI(){
+  $("btnCine").classList.toggle("on",!!S.cine); $("chkCine").checked=!!S.cine;
+  for(const [id,key] of [["segCFrame","cFrame"],["segCHide","cHideV"],["segCBg","cBg"]]) $(id).querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===S[key])));
+}
+S.cHideV=S.cHide===false?"all":"play";
+$("btnCine").onclick=()=>setCine(!S.cine);
+$("chkCine").addEventListener("change",()=>setCine($("chkCine").checked));
+seg("segCFrame","cFrame",()=>{});
+seg("segCHide","cHideV",()=>{ S.cHide=S.cHideV!=="all"; save(); cinePrepare(); });
+seg("segCBg","cBg",()=>{ CINE.fog=null; });
+rng("cPh","cPh","cPhOut",v=>v+"%",()=>{});
+rng("cSize","cSize","cSizeOut",v=>v+"%",()=>{ CINE.lay=null; });
+rng("cDim","cDim","cDimOut",v=>v+"%",()=>{});
+for(const [id,key] of [["chkCGlow","cGlow"],["chkCTrail","cTrail"],["chkCIcons","cIcons"],["chkCTitle","cTitle"],["chkCMeas","cMeas"]]){ const el=$(id); el.checked=S[key]!==false; el.addEventListener("change",()=>{ S[key]=el.checked; save(); }); }
+$("cHandle").value=S.cHandle||""; $("cHandle").addEventListener("input",()=>{ S.cHandle=$("cHandle").value; save(); }); $("cHandle").addEventListener("keydown",e=>e.stopPropagation());
+$("capAdd").onclick=addCap;
+syncCineUI();
 
 /* ---------- boot ---------- */
 applyBg(); applyOv(); syncChips(); $("rateOut").textContent=S.rate+"%"; showTl(S.tl);

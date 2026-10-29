@@ -19,6 +19,7 @@ Everything runs in your browser. Your files are never uploaded anywhere.
 - **Engraving fonts:** notes, clefs, rests and accidentals can be drawn in Finale Maestro (the default), Engraver, Legacy, or the handwritten Broadway, Jazz and Ash, all from MakeMusic. Chord symbols and lyrics are set in Arial Bold, chords with Maestro sharps and flats, the same style Dorico uses. Bar widths follow the notes: a long chord symbol such as Gsus4 no longer stretches its bar, it is nudged aside instead, and dynamics use the matching music font. Choose under Ajustes › Fonte musical, where you can also make the symbols and the noteheads bigger without changing the staff size. Exported videos keep the same fonts.
 - **Two scroll modes:** a continuous horizontal strip with a fixed playhead, or full systems scrolling vertically.
 - **Notes light up** while they sound.
+- **Cinema mode** (`V`, or the **Cinema** button): a vertical, film-style view made for Shorts, Reels and TikTok. Each instrument gets a line icon and its short name in a fixed column; the icon turns amber while the instrument plays. Only the staves that are playing are shown: a staff slides in a bar before its entrance and folds away a bar after its last note, while the others glide to open or close the space. The reading line is a soft amber beam, notes light up amber as they sound, with a flash when they start and a trail on long notes, and what is still to come is dimmed. Staves shrink on their own when many instruments play at once. Add captions over any range of bars (write `*word*` to set a word in amber). The frame on screen can be 9:16, 16:9 or full screen, and exported videos use the same look in every format. Settings are under Ajustes › Modo Cinema.
 - **Sync to audio or video** (mp3, wav, m4a, mp4, mov, webm) through sync points. Between two points the score follows the recording's real tempo, including rubato and fermatas.
 - **Automatic sync to the recording:** click **Sincronizar ♩** in the timeline (or Ajustes › Sincronizar pelo áudio) after lining up bar 1. The app finds the beat of the recording and pins every bar to it, so the score follows a live band that speeds up or holds back. For pieces with repeats, set the performance order under **Saltos** first.
 - **Timeline** showing video frames, the audio waveform and the score's bars on one time axis. Drag the score lane to line up the start, and drag any bar line to pin that bar to the right moment.
@@ -66,6 +67,7 @@ Everything runs in your browser. Your files are never uploaded anywhere.
 | K | Show / hide the timeline |
 | H | Recording mode |
 | F | Full screen |
+| V | Cinema mode on / off |
 | S C L | Guide sound, click, loop |
 | [ ] | Loop start / end |
 | + − | Score size |
