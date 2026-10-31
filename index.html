@@ -3189,7 +3189,42 @@ async function idbPut(k,v){ try{ const db=await idb(); await new Promise((res,re
 async function idbGet(k){ try{ const db=await idb(); return await new Promise((res,rej)=>{ const r=db.transaction("files").objectStore("files").get(k); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }catch(e){ return null; } }
 
 function pwBusy(msg){ const l=$("pwLoading"); if(msg){ l.textContent=msg; l.hidden=false; } else l.hidden=true; }
-async function loadPdfPages(file, onProgress){
+/* Page reading and system detection.
+   The detection follows the approach of Tim Maines' free "sheet-music-scroll" tool (Creator Conservatory):
+   staff lines are found in narrow vertical slices so short and slightly curved systems still work,
+   scanned pages get their own ink threshold and are straightened, and crops are cut along empty rows
+   so slurs, dynamics and ledger lines are not sliced. */
+const DARK=150;
+function otsuThr(lum){
+  const hist=new Float64Array(256); for(let i=0;i<lum.length;i++) hist[lum[i]]++;
+  let total=lum.length, sumAll=0; for(let t=0;t<256;t++) sumAll+=t*hist[t];
+  let w0=0,s0=0,best=-1,thr=128;
+  for(let t=0;t<256;t++){ w0+=hist[t]; if(!w0||w0===total) continue; s0+=t*hist[t]; const m0=s0/w0, m1=(sumAll-s0)/(total-w0), v=w0*(total-w0)*(m0-m1)**2; if(v>best){ best=v; thr=t; } }
+  return Math.min(Math.max(thr,90),200);
+}
+/* angle (degrees, canvas rotate() convention) that makes the staff lines most horizontal */
+function estimateSkew(lum,w,h,thr){
+  const k=Math.max(1,Math.ceil(Math.max(w,h)/900)), pts=[];
+  for(let y=0;y<h;y+=k){ const o=y*w; for(let x=0;x<w;x+=k) if(lum[o+x]<thr) pts.push(x-w/2,y-h/2); }
+  if(pts.length<200) return 0;
+  const nb=Math.ceil(Math.hypot(w,h)/k)+4, bins=new Float64Array(nb);
+  const score=deg=>{ const r=deg*Math.PI/180, s=Math.sin(r), c=Math.cos(r); bins.fill(0);
+    for(let i=0;i<pts.length;i+=2){ const b=Math.round(((pts[i]*s+pts[i+1]*c)/k)+nb/2); if(b>=0&&b<nb) bins[b]++; }
+    let t=0; for(let i=0;i<nb;i++) t+=bins[i]*bins[i]; return t; };
+  let best=0, bs=-1; for(let a=-3;a<=3.001;a+=0.25){ const v=score(a); if(v>bs){ bs=v; best=a; } }
+  const c0=best; for(let a=c0-0.25;a<=c0+0.251;a+=0.05){ const v=score(a); if(v>bs){ bs=v; best=a; } }
+  return Math.abs(best)>=0.1 ? Math.round(best*100)/100 : 0;
+}
+function lumOf(g,w,h){ const id=g.getImageData(0,0,w,h).data, lum=new Uint8Array(w*h); for(let k=0,j=0;k<lum.length;k++,j+=4) lum[k]=(id[j]*0.3+id[j+1]*0.59+id[j+2]*0.11)|0; return lum; }
+async function isScannedPage(pg){
+  try{
+    const tc=await pg.getTextContent(); if(tc.items.some(t=>t.str&&t.str.trim())) return false;
+    const ops=await pg.getOperatorList(), O=pdfjsLib.OPS;
+    return ops.fnArray.some(f=>f===O.paintImageXObject||f===O.paintJpegXObject||f===O.paintInlineImageXObject);
+  }catch(e){ return false; }
+}
+/* opts.deskew=false keeps scanned pages as they are (projects saved before straightening existed) */
+async function loadPdfPages(file, onProgress, opts={}){
   await ensurePdfJs();
   const data=new Uint8Array(await file.arrayBuffer());
   const doc=await pdfjsLib.getDocument({data, isEvalSupported:false}).promise;
@@ -3197,22 +3232,106 @@ async function loadPdfPages(file, onProgress){
   for(let i=1;i<=doc.numPages;i++){
     onProgress&&onProgress(i,doc.numPages);
     const pg=await doc.getPage(i), vp0=pg.getViewport({scale:1}), vp=pg.getViewport({scale:PAGE_W/vp0.width});
-    const c=document.createElement("canvas"); c.width=Math.round(vp.width); c.height=Math.round(vp.height);
-    const g=c.getContext("2d",{willReadFrequently:true}); g.fillStyle="#fff"; g.fillRect(0,0,c.width,c.height);
+    let c=document.createElement("canvas"); c.width=Math.round(vp.width); c.height=Math.round(vp.height);
+    let g=c.getContext("2d",{willReadFrequently:true}); g.fillStyle="#fff"; g.fillRect(0,0,c.width,c.height);
     await pg.render({canvasContext:g, viewport:vp}).promise;
-    const id=g.getImageData(0,0,c.width,c.height).data, lum=new Uint8Array(c.width*c.height);
-    for(let k=0,j=0;k<lum.length;k++,j+=4) lum[k]=(id[j]*0.3+id[j+1]*0.59+id[j+2]*0.11)|0;
-    pages.push({c, w:c.width, h:c.height, lum});
+    let lum=lumOf(g,c.width,c.height), angle=0;
+    const scan=await isScannedPage(pg);
+    if(scan){
+      const thr=otsuThr(lum);
+      if(opts.deskew!==false) angle=estimateSkew(lum,c.width,c.height,thr);
+      if(angle){ // straighten a crooked scan
+        const r=document.createElement("canvas"); r.width=c.width; r.height=c.height;
+        const rg=r.getContext("2d",{willReadFrequently:true}); rg.fillStyle="#fff"; rg.fillRect(0,0,r.width,r.height);
+        rg.translate(r.width/2,r.height/2); rg.rotate(angle*Math.PI/180); rg.translate(-r.width/2,-r.height/2);
+        rg.imageSmoothingQuality="high"; rg.drawImage(c,0,0); rg.setTransform(1,0,0,1,0,0);
+        c=r; g=rg; lum=lumOf(g,c.width,c.height);
+      }
+      // clean the paper: the scan's own threshold becomes the app's DARK, paper turns white
+      const hist=new Uint32Array(256); for(let k=0;k<lum.length;k++) hist[lum[k]]++;
+      let acc=0, wp=255; for(let t=0;t<256;t++){ acc+=hist[t]; if(acc>=lum.length*0.5){ wp=t; break; } } // most of a page is paper
+      wp=Math.max(wp,thr+20,120);
+      const map=new Uint8Array(256); for(let t=0;t<256;t++) map[t]= t<=thr ? Math.round(t*DARK/thr) : t>=wp ? 255 : Math.round(DARK+(t-thr)*(255-DARK)/(wp-thr));
+      const id=g.getImageData(0,0,c.width,c.height), d=id.data;
+      for(let k=0,j=0;k<lum.length;k++,j+=4){ const v=map[lum[k]]; lum[k]=v; d[j]=d[j+1]=d[j+2]=v; d[j+3]=255; }
+      g.putImageData(id,0,0);
+    }
+    pages.push({c, w:c.width, h:c.height, lum, scan, angle});
   }
   return pages;
 }
 
-/* staff and system detection on a grayscale page */
-const DARK=150;
+/* staves inside a region of a grayscale page: [{top, bot, sp, xl, xr}] (top/bot = centre of the outer lines) */
 function findStaves(P, x0=0, x1=P.w, y0=0, y1=P.h){
+  const {w,lum}=P;
+  x0=Math.max(0,Math.round(x0)); x1=Math.min(P.w,Math.round(x1)); y0=Math.max(0,Math.round(y0)); y1=Math.min(P.h,Math.round(y1));
+  let ix0=x1, ix1=x0-1;
+  for(let y=y0;y<y1;y++){ const o=y*w; for(let x=x0;x<ix0;x++) if(lum[o+x]<DARK){ ix0=x; break; } for(let x=x1-1;x>ix1;x--) if(lum[o+x]<DARK){ ix1=x; break; } }
+  if(ix1-ix0<40) return [];
+  // 1) staff lines, slice by slice: a row that is mostly dark inside the slice
+  const NS=10, H=y1-y0, edges=[]; for(let k=0;k<=NS;k++) edges.push(Math.round(ix0+(ix1+1-ix0)*k/NS));
+  const slices=[];
+  for(let s=0;s<NS;s++){
+    const a=edges[s], b=edges[s+1], half=(b-a)*0.5, L=[]; let run=null;
+    if(b-a<8){ slices.push(L); continue; }
+    for(let y=y0;y<y1;y++){ const o=y*w; let n=0; for(let x=a;x<b;x++) if(lum[o+x]<DARK) n++;
+      if(n>half){ const f=n/(b-a); if(run&&y-run.b<=3){ run.b=y; run.m=Math.max(run.m,f); } else { if(run) L.push(run); run={a:y,b:y,m:f}; } } }
+    if(run) L.push(run);
+    slices.push(L);
+  }
+  // a beam lying along the staff is much thicker than a staff line: leave it out
+  const th=slices.flat().map(r=>r.b-r.a+1).sort((a,b)=>a-b), thMax=th.length?Math.max(3,2.5*th[th.length>>1]):99;
+  for(let k=0;k<slices.length;k++) slices[k]=slices[k].filter(r=>r.b-r.a+1<=thMax).map(r=>({c:(r.a+r.b)/2, m:r.m}));
+  // staff space = the most common distance between neighbouring lines
+  const votes=new Map();
+  for(const L of slices) for(let i=1;i<L.length;i++){ const g=Math.round(L[i].c-L[i-1].c); if(g>=4&&g<60) votes.set(g,(votes.get(g)||0)+1); }
+  if(!votes.size) return [];
+  let s=0, sv=-1; for(const [g,v] of votes) if(v>sv||(v===sv&&g<s)){ sv=v; s=g; }
+  // 2) in each slice, five evenly spaced lines = a piece of a staff
+  const pieces=[];
+  for(const L of slices){
+    let i=0;
+    while(i<L.length){
+      let j=i; while(j+1<L.length && L[j+1].c-L[j].c<=1.6*s) j++;
+      const chain=L.slice(i,j+1), tol=Math.max(1.5,0.3*s);
+      // every evenly spaced run of five; ledger lines and beams can sit one space off the staff,
+      // so prefer the run whose lines are the most solid (a staff line crosses the whole slice)
+      const wins=[];
+      for(let k=0;k+4<chain.length;k++){ let dv=0, mn=1; for(let q=0;q<5;q++){ mn=Math.min(mn,chain[k+q].m); if(q) dv=Math.max(dv,Math.abs(chain[k+q].c-chain[k+q-1].c-s)); } if(dv<=tol) wins.push({k,mn,dv}); }
+      wins.sort((a,b)=>b.mn-a.mn||a.dv-b.dv);
+      const used=new Set();
+      for(const W of wins){ let clash=false; for(let q=0;q<5;q++) if(used.has(W.k+q)) clash=true; if(clash) continue;
+        for(let q=0;q<5;q++) used.add(W.k+q); pieces.push({top:chain[W.k].c, bot:chain[W.k+4].c}); }
+      i=j+1;
+    }
+  }
+  // join the pieces from different slices into whole staves
+  pieces.sort((a,b)=>(a.top+a.bot)-(b.top+b.bot));
+  const groups=[];
+  for(const p of pieces){ const c=(p.top+p.bot)/2, g=groups[groups.length-1];
+    if(g && c-g.c<=2*s){ g.list.push(p); g.c=(g.c*(g.list.length-1)+c)/g.list.length; } else groups.push({c,list:[p]}); }
+  const med=a=>{ const b=[...a].sort((x,y)=>x-y); return b[b.length>>1]; };
+  const width=ix1-ix0, staves=[];
+  for(const gr of groups){
+    if(gr.list.length<2) continue;
+    const top=med(gr.list.map(p=>p.top)), bot=med(gr.list.map(p=>p.bot)), sp=(bot-top)/4;
+    // staff width: columns where at least four of the five lines are dark
+    const ys=[0,1,2,3,4].map(k=>Math.round(top+sp*k)), on=new Uint8Array(x1-x0);
+    for(let x=x0;x<x1;x++){ let n=0; for(const yy of ys){ if(lum[yy*w+x]<DARK||(yy>0&&lum[(yy-1)*w+x]<DARK)||(yy+1<P.h&&lum[(yy+1)*w+x]<DARK)) n++; } on[x-x0]=n>=4?1:0; }
+    const rr=[]; let a=-1;
+    for(let i=0;i<=on.length;i++){ if(i<on.length&&on[i]){ if(a<0) a=i; } else if(a>=0){ rr.push([a,i]); a=-1; } }
+    if(!rr.length) continue;
+    const jr=[rr[0].slice()]; for(const [p,q] of rr.slice(1)){ const l=jr[jr.length-1]; if(p-l[1]<=2*s) l[1]=q; else jr.push([p,q]); }
+    const r=jr.reduce((m,v)=>v[1]-v[0]>m[1]-m[0]?v:m);
+    if(r[1]-r[0]<0.15*width) continue;
+    staves.push({top,bot,sp,xl:x0+r[0],xr:x0+r[1]-1});
+  }
+  return staves.sort((a,b)=>a.top-b.top);
+}
+/* the detection used before October 2026; kept so projects saved with it reopen exactly as they were */
+function findStavesV1(P, x0=0, x1=P.w, y0=0, y1=P.h){
   const {w,lum}=P, rows=[]; const span=x1-x0;
   for(let y=y0;y<y1;y++){ let n=0; const o=y*w; for(let x=x0;x<x1;x+=2) if(lum[o+x]<DARK) n++; rows.push(n*2/span); }
-  // staff lines run almost the whole width; rows of ledger lines are broken and much lighter
   const lines=[], lw=[]; let run=null;
   rows.forEach((r,i)=>{ const y=i+y0; if(r>0.45){ if(run&&y===run.end+1){ run.end=y; run.m=Math.max(run.m,r); } else { if(run){ lines.push((run.start+run.end)/2); lw.push(run.m); } run={start:y,end:y,m:r}; } } });
   if(run){ lines.push((run.start+run.end)/2); lw.push(run.m); }
@@ -3231,30 +3350,72 @@ function findStaves(P, x0=0, x1=P.w, y0=0, y1=P.h){
   }
   return staves;
 }
-function connected(P,a,b){ // brace or bracket joining two staves
-  const {w,lum}=P;
-  for(let x=Math.max(0,Math.round(a.xl-3*a.sp)); x<=Math.round(a.xl+a.sp); x++){
-    let dark=0, n=0; for(let y=Math.round(a.bot)+2; y<Math.round(b.top)-1; y++){ n++; if(lum[y*w+x]<DARK) dark++; }
-    if(n>0 && dark/n>0.9) return true;
+function connected(P,a,b){ // system barline, brace or bracket joining two staves
+  const {w,lum}=P, y0=Math.round(a.bot)+2, y1=Math.round(b.top)-1;
+  if(y1<=y0) return true;
+  const L=(x,y)=>Math.min(lum[y*w+Math.max(0,x-1)],lum[y*w+x],lum[y*w+Math.min(w-1,x+1)]);
+  for(let x=Math.max(0,Math.round(Math.min(a.xl,b.xl)-3*a.sp)); x<=Math.min(w-1,Math.round(Math.max(a.xl,b.xl)+1.5*a.sp)); x++){
+    let dark=0, n=0; for(let y=y0; y<y1; y++){ n++; if(L(x,y)<200) dark++; }
+    if(n>0 && dark/n>0.92) return true;
   }
   return false;
 }
-function detectSystems(P, pi){
-  const st=findStaves(P); if(!st.length) return [];
-  const groups=[]; let cur=[st[0]];
-  for(let i=1;i<st.length;i++){ if(connected(P,st[i-1],st[i])) cur.push(st[i]); else { groups.push(cur); cur=[st[i]]; } }
-  groups.push(cur);
-  const out=groups.map(g=>{ const sp=g[0].sp, xl=Math.min(...g.map(s=>s.xl)), xr=Math.max(...g.map(s=>s.xr));
-    return { p:pi, x:Math.max(0,xl-2.5*sp), w:Math.min(P.w,xr+1.2*sp)-Math.max(0,xl-2.5*sp), top:g[0].top-4.5*sp, bot:g[g.length-1].bot+4.5*sp }; });
-  for(let i=0;i<out.length;i++){ const prev=out[i-1], next=out[i+1];
-    if(prev && out[i].top<prev.bot){ const mid=(prev.bot+out[i].top)/2; prev.bot=mid; out[i].top=mid; }
-    if(next && out[i].bot>next.top){ const mid=(out[i].bot+next.top)/2; out[i].bot=mid; next.top=mid; } }
-  return out.map(o=>({p:o.p, x:Math.round(o.x), y:Math.round(Math.max(0,o.top)), w:Math.round(o.w), h:Math.round(Math.min(P.h,o.bot)-Math.max(0,o.top))}));
+/* an empty row across [x0,x1): scans may keep a speck or two */
+function blankRow(P,y,x0,x1){
+  const {w,lum}=P, o=y*w, lim=P.scan?DARK:245, allow=P.scan?Math.max(2,(x1-x0)*0.003):0; let n=0;
+  for(let x=x0;x<x1;x++) if(lum[o+x]<lim && ++n>allow) return false;
+  return true;
+}
+function blankRuns(P,lo,hi,x0,x1){ const out=[]; let a=-1; for(let y=lo;y<=hi+1;y++){ if(y<=hi&&blankRow(P,y,x0,x1)){ if(a<0) a=y; } else if(a>=0){ out.push([a,y-1]); a=-1; } } return out; }
+/* every system on every page, with crop boxes that do not slice slurs, dynamics or ledger lines */
+function detectAllSystems(pages){
+  const per=pages.map((P,pi)=>{
+    const st=findStaves(P); if(!st.length) return {P,pi,sys:[]};
+    const groups=[]; let cur=[st[0]];
+    for(let i=1;i<st.length;i++){ if(connected(P,st[i-1],st[i])) cur.push(st[i]); else { groups.push(cur); cur=[st[i]]; } }
+    groups.push(cur);
+    return {P,pi,sys:groups.map(g=>({top:g[0].top, bot:g[g.length-1].bot, xl:Math.min(...g.map(s=>s.xl)), xr:Math.max(...g.map(s=>s.xr)), sp:g.map(s=>s.sp).sort((a,b)=>a-b)[g.length>>1]}))};
+  });
+  const out=[];
+  for(const {P,pi,sys} of per){
+    const {w,lum}=P;
+    for(const sy of sys){ // left: take the brace or bracket touching the staff, not the instrument names
+      let x0=sy.xl, gap=0;
+      for(let x=sy.xl-1; x>0 && gap<0.6*sy.sp; x--){ let any=false; for(let y=Math.round(sy.top);y<=Math.round(sy.bot);y++) if(lum[y*w+x]<DARK){ any=true; break; } if(any){ x0=x; gap=0; } else gap++; }
+      sy.x0=Math.max(0,Math.round(x0-0.5*sy.sp)); sy.x1=Math.min(w,Math.round(sy.xr+0.8*sy.sp));
+    }
+    sys.forEach((sy,i)=>{
+      const prev=sys[i-1], next=sys[i+1], pad=6;
+      if(prev){ // between two systems: cut through the widest empty band
+        const x0=Math.min(prev.x0,sy.x0), x1=Math.max(prev.x1,sy.x1), lo=Math.ceil(prev.bot)+1, hi=Math.floor(sy.top)-1, mid=(lo+hi)/2;
+        const runs=blankRuns(P,lo,hi,x0,x1);
+        if(runs.length){ const r=runs.reduce((m,v)=>{ const lv=v[1]-v[0], lm=m[1]-m[0]; return lv>lm||(lv===lm&&Math.abs((v[0]+v[1])/2-mid)<Math.abs((m[0]+m[1])/2-mid))?v:m; });
+          const p=Math.min(pad,Math.floor((r[1]-r[0])/2)); prev.cutBot=r[0]+p; sy.cutTop=r[1]-p; }
+        else { // no empty row (the systems interlock): cut along the row with the least ink
+          let by=Math.round(mid), bn=1e9;
+          for(let y=lo;y<=hi;y++){ let n=0; const o=y*w; for(let x=x0;x<x1;x++) if(lum[o+x]<245) n++; if(n<bn||(n===bn&&Math.abs(y-mid)<Math.abs(by-mid))){ bn=n; by=y; } }
+          prev.cutBot=by; sy.cutTop=by; }
+      }
+      if(!prev){ // top of the page: walk up until an empty band of about a staff space (titles stay out)
+        const need=Math.max(4,Math.round(1.2*sy.sp)), lim=Math.max(0,Math.round(sy.top-14*sy.sp)); let y=Math.floor(sy.top)-1, run=0;
+        for(; y>=lim; y--){ if(blankRow(P,y,sy.x0,sy.x1)){ if(++run>=need) break; } else run=0; }
+        sy.cutTop = y>=lim ? y+run-Math.min(pad,run>>1) : lim;
+      }
+      if(!next){ // bottom of the page, same idea going down
+        const need=Math.max(4,Math.round(1.2*sy.sp)), lim=Math.min(P.h-1,Math.round(sy.bot+14*sy.sp)); let y=Math.ceil(sy.bot)+1, run=0;
+        for(; y<=lim; y++){ if(blankRow(P,y,sy.x0,sy.x1)){ if(++run>=need) break; } else run=0; }
+        sy.cutBot = y<=lim ? y-run+Math.min(pad,run>>1) : lim;
+      }
+    });
+    for(const sy of sys){ const t=Math.max(0,sy.cutTop), b=Math.min(P.h-1,sy.cutBot); out.push({p:pi, x:sy.x0, y:t, w:sy.x1-sy.x0, h:b-t+1}); }
+  }
+  return out;
 }
 
 /* stitch crops into one strip, aligned on the top staff line, at a common staff size */
 function stitch(pages, crops){
-  const info=crops.map(c=>{ const P=pages[c.p]; const st=findStaves(P, Math.max(0,c.x), Math.min(P.w,c.x+c.w), Math.max(0,c.y), Math.min(P.h,c.y+c.h)); return {c,st}; });
+  const find=(PW&&PW.v>=2)?findStaves:findStavesV1;
+  const info=crops.map(c=>{ const P=pages[c.p]; const st=find(P, Math.max(0,c.x), Math.min(P.w,c.x+c.w), Math.max(0,c.y), Math.min(P.h,c.y+c.h)); return {c,st}; });
   const sps=info.flatMap(i=>i.st.map(s=>s.sp)).sort((a,b)=>a-b); const sp=sps.length?sps[sps.length>>1]:12;
   const items=info.map(({c,st})=>{
     const own=st.length?st[0].sp:sp, k=Math.max(0.6,Math.min(1.6,sp/own));
@@ -3291,12 +3452,17 @@ function detectBarlines(strip){
     const xs0=Math.round(Math.max(0,startX));
     for(let x=xs0; x<w; x++){
       let ok=true;
-      for(const s of pc.staves){
+      for(let si=0; si<pc.staves.length; si++){
+        const s=pc.staves[si];
         let d=0,n=0; for(let y=Math.round(s.top)+1;y<=Math.round(s.bot)-1;y++){ n++; if(colDark(x,y)) d++; }
         if(!n||d/n<0.9){ ok=false; break; }
+        // in piano and orchestral systems the bar line runs on to the next staff: that is not a stem
+        const prv=pc.staves[si-1], nxt=pc.staves[si+1];
+        const through=(y0,y1)=>{ let dd=0,nn=0; for(let y=Math.round(y0);y<=Math.round(y1);y++){ nn++; if(colDark(x,y)) dd++; } return nn>0&&dd/nn>=0.9; };
+        const joinUp=prv&&through(prv.bot+1,s.top-1), joinDn=nxt&&through(s.bot+1,nxt.top-1);
         // stems keep going past the staff, unbroken (a bar number above is separated by a gap)
-        let up=0; for(let y=Math.round(s.top)-3; y>=0 && up<s.sp; y--){ if(colDark(x,y)) up++; else break; }
-        let dn=0; for(let y=Math.round(s.bot)+3; y<H && dn<s.sp; y++){ if(colDark(x,y)) dn++; else break; }
+        let up=0; if(!joinUp) for(let y=Math.round(s.top)-3; y>=0 && up<s.sp; y--){ if(colDark(x,y)) up++; else break; }
+        let dn=0; if(!joinDn) for(let y=Math.round(s.bot)+3; y<H && dn<s.sp; y++){ if(colDark(x,y)) dn++; else break; }
         if(up>=Math.max(2,0.2*s.sp)||dn>=Math.max(2,0.2*s.sp)){ ok=false; break; }
         // a note head or a beam stuck to either end means a stem, not a bar line
         const q=s.sp;
@@ -3338,18 +3504,19 @@ function defaultStart(strip, bars){
 async function openPdf(file){
   $("pdfw").hidden=false; pwBusy("Abrindo o PDF…");
   try{
-    const pages=await loadPdfPages(file,(i,n)=>pwBusy(`Lendo a página ${i} de ${n}…`));
     const key=file.name+"|"+file.size;
     let proj=null; try{ proj=JSON.parse(localStorage.getItem("pr.pdfproj:"+key)||"null"); }catch(e){}
-    PW={ file, key, name:file.name.replace(/\.pdf$/i,""), pages, step:1,
-      crops: proj&&proj.crops ? proj.crops : pages.flatMap((P,i)=>detectSystems(P,i)),
+    const v=proj ? (proj.v||1) : 2; // projects from before Oct 2026 keep the old detection so their bar marks stay put
+    const pages=await loadPdfPages(file,(i,n)=>pwBusy(`Lendo a página ${i} de ${n}…`),{deskew:v>=2});
+    PW={ file, key, v, name:file.name.replace(/\.pdf$/i,""), pages, step:1,
+      crops: proj&&proj.crops ? proj.crops : detectAllSystems(pages),
       markers: proj&&proj.markers ? proj.markers : null,
       firstNum: proj?proj.firstNum:1, beats: proj?proj.beats:4, beatType: proj?proj.beatType:4, bpm: proj?proj.bpm:72, spans: proj&&proj.spans?proj.spans:{}, anns: proj&&proj.anns?proj.anns:[], strip:null, sel:null, mz:240 };
     pwBusy(null); $("pwLab").textContent="PDF · "+PW.name.toUpperCase(); pwShow(1);
     if(!PW.crops.length) toast("Não encontrei pautas automaticamente. Desenhe os recortes à mão.");
   }catch(e){ console.error(e); pwBusy(null); $("pdfw").hidden=true; toast("Não consegui abrir esse PDF. Se ele for uma imagem escaneada protegida, salve uma cópia sem senha e tente de novo."); }
 }
-function pwSave(){ if(!PW) return; try{ localStorage.setItem("pr.pdfproj:"+PW.key, JSON.stringify({crops:PW.crops, markers:PW.markers, firstNum:PW.firstNum, beats:PW.beats, beatType:PW.beatType, bpm:PW.bpm, spans:PW.spans, anns:PW.anns||[]})); }catch(e){} }
+function pwSave(){ if(!PW) return; try{ localStorage.setItem("pr.pdfproj:"+PW.key, JSON.stringify({v:PW.v||1, crops:PW.crops, markers:PW.markers, firstNum:PW.firstNum, beats:PW.beats, beatType:PW.beatType, bpm:PW.bpm, spans:PW.spans, anns:PW.anns||[]})); }catch(e){} }
 function sortCrops(){ PW.crops.sort((a,b)=>a.p-b.p||a.y-b.y||a.x-b.x); }
 function pwShow(step){
   PW.step=step; $("pwSteps").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.s===step)));
@@ -3363,7 +3530,7 @@ function thint(t){ const p=document.createElement("span"); p.className="pw-hint"
 /* step 1: crop systems on the pages */
 function pwStep1(body,tools){
   tools.append(
-    tbtn("Detectar sistemas de novo","Refaz os recortes automáticos de todas as páginas",()=>{ PW.crops=PW.pages.flatMap((P,i)=>detectSystems(P,i)); PW.markers=null; pwShow(1); }),
+    tbtn("Detectar sistemas de novo","Refaz os recortes automáticos de todas as páginas",()=>{ PW.crops=detectAllSystems(PW.pages); PW.markers=null; pwShow(1); }),
     tbtn("Igualar corte esquerdo","Aplica o corte esquerdo do 2º sistema a todos os seguintes, para tirar a clave e a armadura repetidas",()=>{ sortCrops(); const ref=PW.crops[1]; if(!ref) return; for(const c of PW.crops.slice(2)){ const r=c.x+c.w; c.x=ref.x; c.w=r-c.x; } PW.markers=null; renderBoxes(); }),
     thint("Arraste um recorte para mover e puxe as bordas para ajustar. Desenhe na página para criar um novo. Os números mostram a ordem da emenda.")
   );
@@ -3583,10 +3750,10 @@ async function restorePdf(key){
   const file=await idbGet("pdf:"+key); if(!file) return false;
   try{
     $("loading").hidden=false;
-    const pages=await loadPdfPages(file);
     let proj=null; try{ proj=JSON.parse(localStorage.getItem("pr.pdfproj:"+key)||"null"); }catch(e){}
     if(!proj||!proj.markers) return false;
-    PW={file,key,name:file.name.replace(/\.pdf$/i,""),pages,step:3,crops:proj.crops,markers:proj.markers,firstNum:proj.firstNum,beats:proj.beats,beatType:proj.beatType,bpm:proj.bpm,spans:proj.spans||{},anns:proj.anns||[],strip:null,sel:null,mz:240};
+    const v=proj.v||1, pages=await loadPdfPages(file,null,{deskew:v>=2});
+    PW={file,key,v,name:file.name.replace(/\.pdf$/i,""),pages,step:3,crops:proj.crops,markers:proj.markers,firstNum:proj.firstNum,beats:proj.beats,beatType:proj.beatType,bpm:proj.bpm,spans:proj.spans||{},anns:proj.anns||[],strip:null,sel:null,mz:240};
     await applyPdf(); return true;
   }catch(e){ console.error(e); return false; }
 }
